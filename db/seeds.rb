@@ -29,6 +29,7 @@ seed_options = [
 seed_options.each do |text|
   Option.find_or_create_by!(text: text) do |option|
     option.status = "approved"
+    option.category = OptionClassifier.call(text)
     option.is_seed = true
   end
 end

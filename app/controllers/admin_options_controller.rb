@@ -2,6 +2,7 @@
 #
 # * Same admin-only access and session-based CSRF as the rest of the admin area (AdminArea +
 #   AdminAuthentication); PATCH/DELETE carry Rails' authenticity token.
+# * The admin can also change the good/bad category of an option (pairs are built per category).
 # * Edit goes through the same rules as a public submission: stripped text, 1..120 chars,
 #   ContentModerator. Because this is an admin decision, a moderation hit is shown as a warning
 #   and only saved when the admin ticks "forçar"; the status is not changed by an edit.
@@ -18,9 +19,10 @@ class AdminOptionsController < ApplicationController
 
   def index
     @status = Option::STATUS_FILTERS.key?(params[:status]) ? params[:status] : nil
+    @category = Option::CATEGORY_FILTERS.key?(params[:category]) ? params[:category] : nil
     @query = params[:q].to_s.strip.first(120)
 
-    ids = Option.admin_ids(status: @status, query: @query)
+    ids = Option.admin_ids(status: @status, query: @query, category: @category)
     @total = ids.size
     @total_pages = [ (@total / PER_PAGE.to_f).ceil, 1 ].max
     @page = params[:page].to_i.clamp(1, @total_pages)
@@ -39,6 +41,7 @@ class AdminOptionsController < ApplicationController
     text = params.dig(:option, :text).to_s.strip
     force = params.dig(:option, :force) == "1"
     @option.text = text
+    @option.category = params.dig(:option, :category) if OptionClassifier::CATEGORIES.include?(params.dig(:option, :category))
 
     unless @option.valid?(:admin_edit)
       @moderation_reasons = []
@@ -74,7 +77,7 @@ class AdminOptionsController < ApplicationController
 
   # filter / search / page to come back to after an edit or delete
   def list_params
-    params.permit(:status, :q, :page).to_h.symbolize_keys.compact_blank
+    params.permit(:status, :category, :q, :page).to_h.symbolize_keys.compact_blank
   end
   helper_method :list_params
 end

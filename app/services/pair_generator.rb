@@ -38,18 +38,28 @@ class PairGenerator
     [ option1.id, option2.id ].sort.join("-")
   end
 
+  # Pairs are always good-vs-good or bad-vs-bad. A category is picked with a probability
+  # proportional to its number of options (so every option is about as likely to show up),
+  # then two different options of that category are drawn. Categories with a single option
+  # cannot form a pair and are skipped.
   def random_pair
-    return nil if approved_options.length < 2
-    approved_options.sample(2)
+    pool = pairable_options
+    return nil if pool.empty?
+
+    total = pool.sum { |options| options.length }
+    pick = rand(total)
+    options = pool.find { |candidates| (pick -= candidates.length) < 0 }
+    options.sample(2)
   end
 
   def pair_of_day
-    return nil if approved_options.length < 2
+    pool = pairable_options
+    return nil if pool.empty?
 
     # Deterministic for the whole day (same seed for every visitor). String#hash is randomized
     # per process, so a stable CRC32 of the date is used as the seed instead.
-    seed = Zlib.crc32(Date.current.to_s)
-    approved_options.shuffle(random: Random.new(seed)).take(2)
+    random = Random.new(Zlib.crc32(Date.current.to_s))
+    pool.sort_by { |options| options.first.id }.sample(random: random).shuffle(random: random).take(2)
   end
 
   def pair_by_hash(pair_hash)
@@ -68,6 +78,11 @@ class PairGenerator
   end
 
   private
+
+  # [[good options...], [bad options...]] without the categories that have fewer than 2 options
+  def pairable_options
+    approved_options.group_by(&:category).values.select { |options| options.length >= 2 }
+  end
 
   def approved_options
     @approved_options ||= Rails.cache.fetch("#{CACHE_NAMESPACE}:approved", expires_in: APPROVED_CACHE_TTL) do
@@ -91,10 +106,17 @@ class PairGenerator
       { pair_hash: pair_hash, percentages: percentages, total_votes: counts.values.sum, controversy: controversy_score(percentages) }
     end
 
+    ranked = ranked.select { |pair| same_category?(pair[:pair_hash]) }
     ranked.sort_by { |pair| -pair[:controversy] }.filter_map do |pair|
       options = pair_by_hash(pair[:pair_hash])
       pair.merge(options: options) if options
     end.take(limit)
+  end
+
+  # Pairs made before categories existed may mix them; they are not ranked any more.
+  def same_category?(pair_hash)
+    options = pair_by_hash(pair_hash)
+    options.present? && options.map(&:category).uniq.length == 1
   end
 
   # How close to 50/50 the split is (0-100, where 100 is a perfect 50/50)

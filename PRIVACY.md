@@ -66,10 +66,10 @@ limited; the session is renewed on login (no fixation) and expires after 1 hour.
 
 ## What is stored
 
-Option texts, votes per option/pair, moderation status and report counts, timestamps, and the short-lived hashed
+Option texts (with a good/bad category and a review flag), votes per option/pair, report counts, timestamps, the text/category/reason/date of options the admin deleted or rejected (`deleted_options`, no author data), and the short-lived hashed
 rate-limit keys. Nothing that identifies a person.
 
 ## Input handling
 
-ActiveRecord parameterized queries, ERB auto-escaping, 120-character limit, vote parameters validated, moderation
-of every submission (`app/services/content_moderator.rb`).
+ActiveRecord parameterized queries, ERB auto-escaping, 120-character limit, vote parameters validated; new options go live at once and are reviewed by the admin
+afterwards (`/admin/review`), no automatic filtering.

@@ -23,6 +23,7 @@ Rails.application.routes.draw do
 
   # Admin panel (requires authentication)
   get "admin", to: "admin#index", as: :admin_index
+  get "admin/review", to: "admin#review", as: :admin_review
   post "admin/approve/:id", to: "admin#approve", as: :admin_approve
   post "admin/reject/:id", to: "admin#reject", as: :admin_reject
 

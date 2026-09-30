@@ -8,7 +8,7 @@ tracking, no third-party analytics** and **no client IPs in the database or in t
 ## Features
 
 - Random pairs, a shareable URL per pair (Web Share API), "Par do Dia" and a "most controversial" ranking
-- Automatic moderation (blocklists from environment variables + a narrow full-name heuristic), manual review in `/admin`
+- Good/bad categories (pairs never mix them), options go live immediately and are reviewed afterwards in a persistent queue (`/admin/review`: Aprovar / Reprovar), admin tools to edit/search/delete every option
 - Anti-spam rate limiting with **hashed** IPs (`rate_limits` table, no Redis)
 - Real HTTP security headers: CSP without `unsafe-inline`, HSTS, nosniff, Referrer-Policy, Permissions-Policy, X-Frame-Options
 - Stateless CSRF protection on public forms (Origin/Referer + signed token) so public pages stay **cookie-free**
@@ -76,22 +76,36 @@ Render free web service does not fall asleep after 15 idle minutes. The URL come
 ## Admin panel
 
 Open `/admin/login` and submit the password in the form (it is never accepted in a URL / query string).
-After login you can approve/reject pending and reported options. The session lasts 1 hour and lives in a
+After login you can review the queue of new/reported options (`/admin/review`), manage all options (`/admin/options`: alphabetical, filters, search, edit, category, delete) and browse the deleted texts (`/admin/deleted`). The session lasts 1 hour and lives in a
 cookie that is `Secure`, `HttpOnly`, `SameSite=Strict` and limited to `Path=/admin`. The cookie is only issued
 **after a successful login**: `GET /admin/login` (visited by anonymous users and scanners) sets no cookie. The login
 POST is protected without a session by a same-origin check (`Sec-Fetch-Site`/`Origin`/`Referer`) plus a signed,
 purpose-bound, 1-hour token in the form, and by the brute-force throttle. Approve/reject/logout are protected by
 Rails' session-based CSRF tokens. Login attempts are rate limited.
 
-## Content moderation
+## Categories, review queue and moderation
 
-New submissions are normalized (accents, spacing and leetspeak removed) and checked against the blocklists
-above. Real people are caught primarily by `MODERATION_NAMES_BLOCKLIST` (short names match whole words only,
-so "ana" does not flag "banana"). A deliberately narrow heuristic also flags two or more consecutive
-capitalized words in the middle of a sentence ("Votar em João Silva"); single capitalized words such as
-"Brasil" or "Netflix", sentence-initial capitals and well-known places ("São Paulo") are allowed.
-Flagged submissions become `pending` for manual review. Three user reports send an option back to `pending`.
-The repo only ships harmless placeholder lists as defaults.
+- **Categories:** every option is `good` (something nice to have/do) or `bad` (pain, gross, violent, a "lesser evil"
+  dilemma). **Pairs are only built inside one category** (good × good, bad × bad), on the home page, in "Par do Dia" and
+  in the controversial ranking (old mixed pairs are no longer ranked). A category is drawn proportionally to its number
+  of options; a category with a single option cannot form a pair. The category is guessed by `OptionClassifier`
+  (accent/case-insensitive whole-word signals: body/sex/gross, pain/violence, scary animals, "por 10 anos"/"3x ao dia"
+  penalties, ...; anything else is good) and can be changed in `/admin/options` (edit page, plus a category filter).
+- **No automatic moderation of new submissions.** A submitted option is **live immediately** and enters the
+  **persistent review queue** (`options.needs_review`) shown at `/admin/review` (linked, with the count, on the admin
+  dashboard: the link is highlighted when the queue is not empty). **Aprovar** takes it out of the queue (and resets its
+  report count); **Reprovar** deletes the option **for good**, together with its votes and the votes of pairs that
+  contain it, in one transaction, and keeps its text (and category) in `deleted_options` (reason `reprovada`;
+  `manual` for deletions in `/admin/options`), browsable read-only at `/admin/deleted`. No IP or author data is stored.
+- **Reports:** at **3 reports** an option goes **off air** (`status = pending`) and back into the review queue;
+  Aprovar puts it on air again with the count reset.
+- `ContentModerator` (blocklists from `MODERATION_BLOCKLIST` / `MODERATION_NAMES_BLOCKLIST`) is no longer applied to
+  public submissions; it is only used as a **warning when the admin edits a text** (saving a flagged text needs the
+  explicit "forçar" checkbox).
+- **Migration** (`AddReviewQueueAndCategoriesToOptions`, runs at deploy through `bin/docker-entrypoint` → `db:prepare`;
+  works on SQLite and PostgreSQL, reversible, deletes nothing): adds `needs_review`, classifies every existing option,
+  keeps approved ones as they are, makes old `pending` options visible and puts them in the queue (except those that were
+  pending because of 3+ reports: they stay off air, in the queue), and leaves `rejected` ones hidden and out of the queue.
 
 ## Rate limiting
 
@@ -108,7 +122,7 @@ no third-party requests (CSP enforces it), no IPs stored or logged, no analytics
 ```
 app/controllers/   Pages, Pairs, Votes, Options (public), Admin, AdminSessions
 app/controllers/concerns/  PublicRequest (cookie-free CSRF), AdminArea
-app/services/      ContentModerator, RateLimiter, PairGenerator
+app/services/      OptionClassifier, ContentModerator, RateLimiter, PairGenerator
 app/assets/javascripts/application.js   the only script (no inline JS)
 lib/privacy/       IP scrubbing for logs (Rails logger, BroadcastLogger, Puma)
 config/initializers/  CSP, security headers, session cookie, admin secret check, log privacy
