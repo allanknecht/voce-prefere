@@ -24,6 +24,19 @@
       <p class="text-sm text-gray-500 mt-1">Máx. 120 caracteres. Status atual: <%= @option.status_was %>. O status não muda ao editar.</p>
     </div>
 
+    <fieldset class="mb-4">
+      <legend class="block font-bold mb-2">Categoria</legend>
+      <div class="flex gap-4">
+        <% OptionClassifier::CATEGORIES.each do |value| %>
+          <label class="flex items-center gap-2 font-bold">
+            <%= radio_button_tag "option[category]", value, @option.category == value, id: "option_category_#{value}", class: "w-5 h-5" %>
+            <%= Option::CATEGORY_LABELS[value] %>
+          </label>
+        <% end %>
+      </div>
+      <p class="text-xs text-gray-500 mt-1">Boa = algo legal de ter/fazer; Ruim = dor, nojo, situação ruim. Os pares só juntam opções da mesma categoria.</p>
+    </fieldset>
+
     <% if @needs_force %>
       <div class="mb-4 flex items-center gap-2">
         <%= check_box_tag "option[force]", "1", false, id: "option_force", class: "w-5 h-5" %>

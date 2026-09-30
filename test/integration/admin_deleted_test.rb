@@ -67,39 +67,32 @@ class AdminDeletedTest < ActionDispatch::IntegrationTest
   end
 
   test "manual delete via /admin/options records the text and category (reason manual)" do
-    option = Option.create!(text: "Vai pro log", status: "approved", category: "teste")
+    option = Option.create!(text: "Vai pro log", status: "approved", category: "bad")
     login!
     token = csrf_for(confirm_delete_admin_option_path(option), action: admin_option_path(option))
     assert_difference -> { DeletedOption.count }, 1 do
       delete admin_option_path(option), params: { authenticity_token: token }
     end
     entry = DeletedOption.last
-    assert_equal [ "Vai pro log", "teste", "manual" ], [ entry.text, entry.category, entry.reason ]
+    assert_equal [ "Vai pro log", "bad", "manual" ], [ entry.text, entry.category, entry.reason ]
     refute Option.exists?(option.id)
     get admin_deleted_path
     assert_match(/Vai pro log/, response.body)
   end
 
   test "Reprovar in the review queue records the text (reason reprovada)" do
-    option = Option.create!(text: "Reprovada na fila", status: "pending")
+    option = Option.create!(text: "Reprovada na fila", status: "approved", needs_review: true)
     login!
-    token = csrf_for(admin_index_path, action: admin_reject_path(option))
+    token = csrf_for(admin_review_path, action: admin_reject_path(option))
     assert_difference -> { DeletedOption.count }, 1 do
       post admin_reject_path(option), params: { authenticity_token: token }
     end
-    assert_equal "rejected", option.reload.status
+    refute Option.exists?(option.id), "Reprovar deletes the option for good"
     assert_equal [ "Reprovada na fila", "reprovada" ], DeletedOption.last.then { |e| [ e.text, e.reason ] }
   end
 
-  test "rejecting an already rejected option does not log it twice" do
-    option = Option.create!(text: "Só uma vez", status: "pending")
-    option.reject!
-    option.reject!
-    assert_equal 1, DeletedOption.where(text: "Só uma vez").count
-  end
-
   test "any deletion path (destroy) logs the text" do
-    option = Option.create!(text: "Via destroy", status: "pending")
+    option = Option.create!(text: "Via destroy", status: "approved")
     assert_difference -> { DeletedOption.count }, 1 do
       option.destroy!
     end

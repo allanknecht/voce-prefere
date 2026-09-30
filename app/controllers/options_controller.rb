@@ -15,21 +15,17 @@ class OptionsController < ApplicationController
       return
     end
 
-    # Content moderation
-    moderation = ContentModerator.check(text)
-
-    option = Option.new(
-      text: text,
-      status: moderation[:approved] ? "approved" : "pending",
-      category: params[:category].to_s.strip.first(50).presence
-    )
+    # No automatic moderation: the option is live immediately, in a good/bad category guessed by
+    # OptionClassifier, and waits in the persistent review queue (/admin/review) for the admin
+    # to Aprovar or Reprovar it.
+    option = Option.new(text: text, status: "approved", needs_review: true)
 
     if option.save
       RateLimiter.record(hashed_ip, :submit)
       render json: {
         success: true,
-        message: moderation[:approved] ? "Opção enviada!" : "Opção enviada para moderação",
-        approved: moderation[:approved]
+        message: "Opção enviada! Já está no ar e será revisada.",
+        approved: true
       }
     else
       render json: { error: option.errors.full_messages.join(", ") }, status: :unprocessable_entity

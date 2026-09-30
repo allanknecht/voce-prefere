@@ -10,7 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_223000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_230000) do
+  # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_catalog.plpgsql"
+
   create_table "deleted_options", force: :cascade do |t|
     t.string "text", limit: 120, null: false
     t.string "category", limit: 50
@@ -27,6 +30,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_223000) do
     t.boolean "is_seed", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "needs_review", default: false, null: false
+    t.index ["needs_review"], name: "index_options_on_needs_review"
     t.index ["report_count"], name: "index_options_on_report_count"
     t.index ["status", "id"], name: "index_options_on_status_and_id"
   end

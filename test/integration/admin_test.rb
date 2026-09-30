@@ -3,7 +3,7 @@ require "test_helper"
 class AdminTest < ActionDispatch::IntegrationTest
   setup do
     https! # the admin cookie is Secure, like in production
-    @option = Option.create!(text: "Opção pendente", status: "pending")
+    @option = Option.create!(text: "Opção em revisão", status: "approved", needs_review: true)
   end
 
   def login_token
@@ -215,33 +215,35 @@ class AdminTest < ActionDispatch::IntegrationTest
     login!
     post admin_approve_path(@option)
     assert_response :unprocessable_entity
-    assert_equal "pending", @option.reload.status
+    assert @option.reload.needs_review
   end
 
   test "reject without CSRF token is rejected and changes nothing" do
     login!
     post admin_reject_path(@option)
     assert_response :unprocessable_entity
-    assert_equal "pending", @option.reload.status
+    assert Option.exists?(@option.id)
   end
 
   test "approve and reject work with the CSRF token rendered in the admin page" do
     login!
-    token = csrf_token_from(admin_index_path, action: admin_approve_path(@option))
+    token = csrf_token_from(admin_review_path, action: admin_approve_path(@option))
     post admin_approve_path(@option), params: { authenticity_token: token }
-    assert_redirected_to admin_index_path
+    assert_redirected_to admin_review_path
     assert_equal "approved", @option.reload.status
+    refute @option.needs_review
 
-    other = Option.create!(text: "Outra pendente", status: "pending")
-    token = csrf_token_from(admin_index_path, action: admin_reject_path(other))
+    other = Option.create!(text: "Outra em revisão", status: "approved", needs_review: true)
+    token = csrf_token_from(admin_review_path, action: admin_reject_path(other))
     post admin_reject_path(other), params: { authenticity_token: token }
-    assert_equal "rejected", other.reload.status
+    assert_redirected_to admin_review_path
+    refute Option.exists?(other.id)
   end
 
   test "approve requires authentication" do
     post admin_approve_path(@option)
     assert_includes [ 302, 422 ], response.status
-    assert_equal "pending", @option.reload.status
+    assert @option.reload.needs_review
   end
 
   test "logout clears the session" do
