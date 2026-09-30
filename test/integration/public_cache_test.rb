@@ -61,7 +61,7 @@ class PublicCacheTest < ActionDispatch::IntegrationTest
     assert_equal 1, count_queries { PairGenerator.random_pair }.size # cache was dropped -> reloaded
     assert_includes PairGenerator.new.send(:approved_options).map(&:text), "Nova aprovada"
 
-    Option.find_by!(text: "Nova aprovada").reject!
+    Option.find_by!(text: "Nova aprovada").destroy_from_queue!
     refute_includes PairGenerator.new.send(:approved_options).map(&:text), "Nova aprovada"
   end
 

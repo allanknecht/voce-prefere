@@ -1,36 +1,40 @@
 <div class="bg-white rounded-2xl shadow-xl p-4 sm:p-6 border-4 border-black">
   <h1 class="text-2xl sm:text-3xl font-black mb-2 text-center">📋 Fila de revisão</h1>
   <p class="text-sm text-gray-600 text-center mb-4">
-    Opções novas já estão no ar. <strong>Aprovar</strong> tira da fila; <strong>Reprovar</strong> exclui de vez (com os votos) e guarda o texto em “Opções excluídas”.
-    Opções com <%= Option::REPORT_THRESHOLD %> denúncias saem do ar e voltam para cá.
+    Nada sai do ar sozinho. Opções novas e opções denunciadas continuam no ar até você decidir; opções antigas fora do ar também aparecem aqui.
+    <strong>Aprovar</strong> deixa (ou coloca) no ar, tira da fila e zera as denúncias; <strong>Excluir</strong> apaga de vez (com os votos) e guarda o texto em “Opções excluídas”.
+    Denunciadas aparecem primeiro.
   </p>
 
   <% if notice %>
     <p class="bg-green-100 border-2 border-green-400 text-green-700 px-4 py-3 rounded mb-4"><%= notice %></p>
   <% end %>
 
-  <p class="text-sm text-gray-600 mb-3"><%= @total %> na fila • página <%= @page %> de <%= @total_pages %> • mais antigas primeiro</p>
+  <p class="text-sm text-gray-600 mb-3"><%= @total %> na fila • página <%= @page %> de <%= @total_pages %> • denunciadas primeiro, depois as mais antigas</p>
 
   <% if @options.any? %>
     <ul class="space-y-3">
       <% @options.each do |option| %>
-        <li class="border-2 <%= option.status == "approved" ? "border-yellow-300 bg-yellow-50" : "border-red-300 bg-red-50" %> rounded-lg p-3">
+        <li class="border-2 <%= option.report_count.positive? ? "border-red-500 bg-red-50" : (option.status == "approved" ? "border-yellow-300 bg-yellow-50" : "border-gray-400 bg-gray-50") %> rounded-lg p-3">
           <p class="font-bold text-lg break-words"><%= option.text %></p>
           <p class="text-xs text-gray-600 mt-1">
             <span class="inline-block rounded px-2 py-0.5 font-bold <%= option.category == "bad" ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800" %>"><%= Option::CATEGORY_LABELS[option.category] %></span>
             <% if option.status == "approved" %>
               <span class="inline-block rounded px-2 py-0.5 font-bold bg-yellow-100 text-yellow-800">No ar</span>
             <% else %>
-              <span class="inline-block rounded px-2 py-0.5 font-bold bg-red-100 text-red-800">Fora do ar (denúncias)</span>
+              <span class="inline-block rounded px-2 py-0.5 font-bold bg-gray-200 text-gray-800">Fora do ar</span>
+            <% end %>
+            <% if option.report_count.positive? %>
+              <span class="inline-block rounded px-2 py-0.5 font-bold bg-red-600 text-white">🚩 <%= option.report_count %> <%= option.report_count == 1 ? "denúncia" : "denúncias" %></span>
             <% end %>
             • ID <%= option.id %> • <%= option.created_at.strftime("%d/%m/%Y %H:%M") %>
-            • <%= @vote_counts[option.id].to_i %> votos • <%= option.report_count %> denúncias
+            • <%= @vote_counts[option.id].to_i %> votos
           </p>
           <div class="flex flex-wrap gap-2 mt-3">
             <%= button_to "✓ Aprovar", admin_approve_path(option), method: :post, form: { class: "inline" },
                 class: "bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded" %>
-            <%= button_to "✗ Reprovar", admin_reject_path(option), method: :post, form: { class: "inline" },
-                class: "bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded" %>
+            <%= link_to "🗑️ Excluir", confirm_delete_admin_option_path(option, from: "review"),
+                class: "bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded inline-block" %>
             <%= link_to "✏️ Editar / categoria", edit_admin_option_path(option),
                 class: "bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded inline-block" %>
           </div>

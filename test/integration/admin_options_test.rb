@@ -97,7 +97,7 @@ class AdminOptionsTest < ActionDispatch::IntegrationTest
     make("Pendente um", status: "pending")
     make("Rejeitada um", status: "rejected")
     login!
-    { "aprovadas" => [ "Aprovada um" ], "pendentes" => [ "Pendente um" ], "rejeitadas" => [ "Rejeitada um" ],
+    { "aprovadas" => [ "Aprovada um" ], "fora-do-ar" => [ "Pendente um", "Rejeitada um" ],
       "" => [ "Aprovada um", "Pendente um", "Rejeitada um" ], "lixo" => [ "Aprovada um", "Pendente um", "Rejeitada um" ] }.each do |filter, expected|
       get admin_options_path, params: { status: filter }
       assert_equal expected, listed_texts, "filter #{filter.inspect}"
@@ -176,23 +176,19 @@ class AdminOptionsTest < ActionDispatch::IntegrationTest
     assert_redirected_to admin_options_path
   end
 
-  test "moderation hit shows a warning and needs the forçar checkbox" do
+  test "edit has no content filter and no forçar checkbox: only length and duplicates are validated" do
     a = make("Texto limpo")
     login!
+    get edit_admin_option_path(a)
+    assert_select "input[name='option[force]']", 0
+    assert_no_match(/moderaç|forçar/i, response.body)
     token = csrf_for(edit_admin_option_path(a), action: admin_option_path(a))
-    flagged = "Votar em João Silva" # full-name heuristic, deterministic without env blocklists
-    assert_equal false, ContentModerator.check(flagged)[:approved]
-
-    patch admin_option_path(a), params: { option: { text: flagged }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
-    assert_response :unprocessable_entity
-    assert_match(/filtro de moderação/, response.body)
-    assert_select "input[type=checkbox][name='option[force]']"
-    assert_equal "Texto limpo", a.reload.text
-
-    patch admin_option_path(a), params: { option: { text: flagged, force: "1" }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
-    assert_redirected_to admin_options_path
-    assert_equal flagged, a.reload.text
-    assert_equal "approved", a.status
+    [ "Votar em João Silva", "qualquer coisa que um filtro barraria: merda" ].each do |text|
+      patch admin_option_path(a), params: { option: { text: text }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
+      assert_redirected_to admin_options_path
+      assert_equal text, a.reload.text
+      assert_equal "approved", a.status
+    end
   end
 
   # ---- delete ---------------------------------------------------------------------------

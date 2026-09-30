@@ -9,7 +9,7 @@
       class: "block text-center font-black text-xl py-5 px-6 rounded-2xl border-4 border-black shadow-lg mb-6 #{@queue_count.positive? ? 'bg-yellow-300 hover:bg-yellow-400 text-gray-900' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}" do %>
     📋 Fila de revisão: <%= @queue_count %> <%= @queue_count == 1 ? "opção" : "opções" %>
     <% if @queue_count.positive? %>
-      <span class="block text-sm font-bold">toque para aprovar ou reprovar →</span>
+      <span class="block text-sm font-bold">toque para aprovar ou excluir →</span>
     <% end %>
   <% end %>
 

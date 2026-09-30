@@ -72,4 +72,4 @@ rate-limit keys. Nothing that identifies a person.
 ## Input handling
 
 ActiveRecord parameterized queries, ERB auto-escaping, 120-character limit, vote parameters validated; new options go live at once and are reviewed by the admin
-afterwards (`/admin/review`), no automatic filtering.
+afterwards (`/admin/review`), no automatic filtering or removal.

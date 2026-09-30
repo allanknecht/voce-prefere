@@ -1,12 +1,10 @@
-# Admin: manage ALL options (approved, pending, rejected).
+# Admin: manage ALL options.
 #
 # * Same admin-only access and session-based CSRF as the rest of the admin area (AdminArea +
 #   AdminAuthentication); PATCH/DELETE carry Rails' authenticity token.
 # * The admin can also change the good/bad category of an option (pairs are built per category).
-# * Edit goes through the same rules as a public submission: stripped text, 1..120 chars,
-#   ContentModerator. Because this is an admin decision, a moderation hit is shown as a warning
-#   and only saved when the admin ticks "forçar"; the status is not changed by an edit.
-#   Duplicates (case/accent-insensitive) are refused, also with "forçar": it is never desirable.
+# * Edit only validates: stripped text, 1..120 characters and no duplicate (case/accent
+#   insensitive). There is NO content filter of any kind; the status is not changed by an edit.
 # * Delete has a server-rendered confirmation page (works under the strict CSP, no JS) that
 #   says how many votes go away, then removes the option and its votes in one transaction.
 class AdminOptionsController < ApplicationController
@@ -34,25 +32,13 @@ class AdminOptionsController < ApplicationController
   end
 
   def edit
-    @moderation_reasons = []
   end
 
   def update
-    text = params.dig(:option, :text).to_s.strip
-    force = params.dig(:option, :force) == "1"
-    @option.text = text
+    @option.text = params.dig(:option, :text).to_s.strip
     @option.category = params.dig(:option, :category) if OptionClassifier::CATEGORIES.include?(params.dig(:option, :category))
 
-    unless @option.valid?(:admin_edit)
-      @moderation_reasons = []
-      return render :edit, status: :unprocessable_entity
-    end
-
-    @moderation_reasons = ContentModerator.check(text)[:reasons]
-    if @moderation_reasons.any? && !force
-      @needs_force = true
-      return render :edit, status: :unprocessable_entity
-    end
+    return render :edit, status: :unprocessable_entity unless @option.valid?(:admin_edit)
 
     @option.save!(context: :admin_edit)
     redirect_to admin_options_path(list_params), notice: "Opção atualizada"
@@ -60,11 +46,19 @@ class AdminOptionsController < ApplicationController
 
   def confirm_destroy
     @votes_count = @option.related_votes.count
+    @from_review = from_review?
   end
 
+  # Excluir. Coming from the review queue (?from=review) the deletion is logged as "excluída na
+  # fila" and the admin goes back to the queue; otherwise it is "excluída manualmente".
   def destroy
-    @option.destroy_with_votes!
-    redirect_to admin_options_path(list_params), notice: "Opção excluída"
+    if from_review?
+      @option.destroy_from_queue!
+      redirect_to admin_review_path, notice: "Opção excluída"
+    else
+      @option.destroy_with_votes!
+      redirect_to admin_options_path(list_params), notice: "Opção excluída"
+    end
   end
 
   private
@@ -73,6 +67,10 @@ class AdminOptionsController < ApplicationController
     @option = Option.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     redirect_to admin_options_path, alert: "Opção não encontrada"
+  end
+
+  def from_review?
+    params[:from] == "review"
   end
 
   # filter / search / page to come back to after an edit or delete

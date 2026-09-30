@@ -8,7 +8,7 @@ tracking, no third-party analytics** and **no client IPs in the database or in t
 ## Features
 
 - Random pairs, a shareable URL per pair (Web Share API), "Par do Dia" and a "most controversial" ranking
-- Good/bad categories (pairs never mix them), options go live immediately and are reviewed afterwards in a persistent queue (`/admin/review`: Aprovar / Reprovar), admin tools to edit/search/delete every option
+- Good/bad categories (pairs never mix them), options go live immediately and are reviewed afterwards in a persistent queue (`/admin/review`: Aprovar / Excluir); **no automatic filter or removal of any kind**, admin tools to edit/search/delete every option
 - Anti-spam rate limiting with **hashed** IPs (`rate_limits` table, no Redis)
 - Real HTTP security headers: CSP without `unsafe-inline`, HSTS, nosniff, Referrer-Policy, Permissions-Policy, X-Frame-Options
 - Stateless CSRF protection on public forms (Origin/Referer + signed token) so public pages stay **cookie-free**
@@ -49,8 +49,6 @@ the fail-fast `ADMIN_SECRET` check and that no IP address reaches the log.
 | `SECRET_KEY_BASE` | **yes** | Rails secret (cookies, signed form tokens, salt for the IP hashes). `bin/rails secret` |
 | `ADMIN_SECRET` | **yes** | Password for `/admin/login`. The app **refuses to boot** if it is unset, shorter than 16 characters or equals the old placeholder. `openssl rand -hex 32` |
 | `DATABASE_URL` | **yes** | PostgreSQL URL, e.g. Neon: `postgresql://user:pass@host/db?sslmode=require` |
-| `MODERATION_BLOCKLIST` | recommended | Comma/newline separated profanity/explicit terms (not stored in the repo) |
-| `MODERATION_NAMES_BLOCKLIST` | recommended | Comma/newline separated names of real people, politicians, brands (not stored in the repo) |
 | `RAILS_LOG_LEVEL` | no | Defaults to `info` |
 
 There is **no** `credentials.yml.enc` and **no** `RAILS_MASTER_KEY`: everything comes from the environment.
@@ -80,10 +78,10 @@ After login you can review the queue of new/reported options (`/admin/review`), 
 cookie that is `Secure`, `HttpOnly`, `SameSite=Strict` and limited to `Path=/admin`. The cookie is only issued
 **after a successful login**: `GET /admin/login` (visited by anonymous users and scanners) sets no cookie. The login
 POST is protected without a session by a same-origin check (`Sec-Fetch-Site`/`Origin`/`Referer`) plus a signed,
-purpose-bound, 1-hour token in the form, and by the brute-force throttle. Approve/reject/logout are protected by
+purpose-bound, 1-hour token in the form, and by the brute-force throttle. Approve/delete/edit/logout are protected by
 Rails' session-based CSRF tokens. Login attempts are rate limited.
 
-## Categories, review queue and moderation
+## Categories and review queue
 
 - **Categories:** every option is `good` (something nice to have/do) or `bad` (pain, gross, violent, a "lesser evil"
   dilemma). **Pairs are only built inside one category** (good × good, bad × bad), on the home page, in "Par do Dia" and
@@ -93,21 +91,28 @@ Rails' session-based CSRF tokens. Login attempts are rate limited.
   or invalid). `OptionClassifier` is only a fallback for non-form paths and the data migration, where the category is guessed
   (accent/case-insensitive whole-word signals: body/sex/gross, pain/violence, scary animals, "por 10 anos"/"3x ao dia"
   penalties, ...; anything else is good) and can be changed in `/admin/options` (edit page, plus a category filter).
-- **No automatic moderation of new submissions.** A submitted option is **live immediately** and enters the
-  **persistent review queue** (`options.needs_review`) shown at `/admin/review` (linked, with the count, on the admin
-  dashboard: the link is highlighted when the queue is not empty). **Aprovar** takes it out of the queue (and resets its
-  report count); **Reprovar** deletes the option **for good**, together with its votes and the votes of pairs that
-  contain it, in one transaction, and keeps its text (and category) in `deleted_options` (reason `reprovada`;
-  `manual` for deletions in `/admin/options`), browsable read-only at `/admin/deleted`. No IP or author data is stored.
-- **Reports:** at **3 reports** an option goes **off air** (`status = pending`) and back into the review queue;
-  Aprovar puts it on air again with the count reset.
-- `ContentModerator` (blocklists from `MODERATION_BLOCKLIST` / `MODERATION_NAMES_BLOCKLIST`) is no longer applied to
-  public submissions; it is only used as a **warning when the admin edits a text** (saving a flagged text needs the
-  explicit "forçar" checkbox).
-- **Migration** (`AddReviewQueueAndCategoriesToOptions`, runs at deploy through `bin/docker-entrypoint` → `db:prepare`;
-  works on SQLite and PostgreSQL, reversible, deletes nothing): adds `needs_review`, classifies every existing option,
-  keeps approved ones as they are, makes old `pending` options visible and puts them in the queue (except those that were
-  pending because of 3+ reports: they stay off air, in the queue), and leaves `rejected` ones hidden and out of the queue.
+- **No automatic filter, nothing is removed or hidden automatically.** There is no word/name blocklist
+  (`ContentModerator` and the `MODERATION_*` variables are gone; if they are still set on Render they are ignored), no
+  automatic rejection and no automatic take-down. A submitted option is **live immediately** and enters the
+  **persistent review queue** (`options.needs_review`) at `/admin/review` (linked, with the count, on the admin
+  dashboard; the link is highlighted when the queue is not empty).
+- **Queue actions:** **Aprovar** = stays/goes **on the air**, leaves the queue and resets the report count to 0 (so a
+  later report queues it again). **Excluir** (with a confirmation page stating how many votes go away) deletes the
+  option **for good** together with its votes and the votes of pairs that contain it, in one transaction, and keeps
+  its text and category in `deleted_options` (`reason` stored as `reprovada`/`manual`, shown in `/admin/deleted` as
+  "Excluída na fila" / "Excluída manualmente"; read-only, no author/IP data).
+- **Reports do not take anything off the air.** The report button (hashed-IP rate limiting) only increments
+  `report_count` and puts the option in the queue (`needs_review = true`). The queue lists **reported options first**
+  (most reports first, red border and a "🚩 N denúncias" badge), then the oldest ones.
+- **Off-air options:** the old moderation left some options `rejected`/`pending` (hidden). The migration
+  `QueueAllOffAirOptions` (idempotent, deletes nothing, does **not** put anything on the air) flags all of them
+  `needs_review`, so they appear in the queue with a "Fora do ar" badge: Aprovar puts them on the air, Excluir deletes
+  them. Public pages only ever show `approved` options.
+- **Admin edit** (`/admin/options`) only validates the length (1–120) and duplicates (case/accent-insensitive); there is
+  no content warning and no "forçar".
+- **Migrations** (run at deploy through `bin/docker-entrypoint` → `db:prepare`; SQLite and PostgreSQL; nothing is
+  deleted): `AddReviewQueueAndCategoriesToOptions` (adds `needs_review`, classifies existing options) and
+  `QueueAllOffAirOptions` (above).
 
 ## Rate limiting
 
@@ -124,7 +129,7 @@ no third-party requests (CSP enforces it), no IPs stored or logged, no analytics
 ```
 app/controllers/   Pages, Pairs, Votes, Options (public), Admin, AdminSessions
 app/controllers/concerns/  PublicRequest (cookie-free CSRF), AdminArea
-app/services/      OptionClassifier, ContentModerator, RateLimiter, PairGenerator
+app/services/      OptionClassifier, RateLimiter, PairGenerator
 app/assets/javascripts/application.js   the only script (no inline JS)
 lib/privacy/       IP scrubbing for logs (Rails logger, BroadcastLogger, Puma)
 config/initializers/  CSP, security headers, session cookie, admin secret check, log privacy

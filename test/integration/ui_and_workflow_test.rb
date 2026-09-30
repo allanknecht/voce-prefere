@@ -47,4 +47,14 @@ class UiAndWorkflowTest < ActionDispatch::IntegrationTest
     refute_match(/secrets\./, path.read)
     assert_match(/vars\.KEEPALIVE_URL/, path.read)
   end
+
+  test "there is no content filter left anywhere in the code base" do
+    root = Rails.root
+    files = Dir[root.join("{app,lib,config,db/seeds.rb,render.yaml,.env.example,README.md,DEPLOYMENT.md}/**/*"), root.join("render.yaml"), root.join(".env.example"), root.join("README.md"), root.join("DEPLOYMENT.md")]
+            .select { |f| File.file?(f) }.reject { |f| f.include?("/db/migrate/") }
+    offenders = files.select { |f| File.read(f).match?(/ContentModerator|MODERATION_(NAMES_)?BLOCKLIST/) && !f.end_with?("README.md", "DEPLOYMENT.md") }
+    assert_empty offenders
+    assert_not defined?(ContentModerator)
+    assert_not root.join("app/services/content_moderator.rb").exist?
+  end
 end

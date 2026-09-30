@@ -69,7 +69,7 @@
     setBusy(link, true);
   });
 
-  // Regular (non-JS-handled) forms, e.g. the admin login / approve / reject buttons.
+  // Regular (non-JS-handled) forms, e.g. the admin login / approve buttons.
   document.addEventListener("submit", function (event) {
     var form = event.target;
     if (event.defaultPrevented || form.id === "submit-form") return;

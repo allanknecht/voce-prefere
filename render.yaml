@@ -15,9 +15,5 @@ services:
         generateValue: true
       - key: ADMIN_SECRET
         generateValue: true
-      - key: MODERATION_BLOCKLIST
-        sync: false        # comma/newline separated terms; not stored in the repo
-      - key: MODERATION_NAMES_BLOCKLIST
-        sync: false        # comma/newline separated names of real people, brands, ...
       - key: RAILS_LOG_LEVEL
         value: info

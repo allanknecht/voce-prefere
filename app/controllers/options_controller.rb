@@ -23,8 +23,8 @@ class OptionsController < ApplicationController
       return
     end
 
-    # No automatic moderation: the option is live immediately and waits in the persistent
-    # review queue (/admin/review) for the admin to Aprovar or Reprovar it. Status and review
+    # No automatic filter of any kind: the option is live immediately and waits in the persistent
+    # review queue (/admin/review) for the admin to Aprovar or Excluir it. Status and review
     # flag are fixed here, a client cannot set them.
     option = Option.new(text: text, category: category, status: "approved", needs_review: true)
 
@@ -47,7 +47,7 @@ class OptionsController < ApplicationController
       return
     end
 
-    option = Option.find_by(id: params[:id])
+    option = Option.approved.find_by(id: params[:id]) # only what the public can see can be reported
 
     unless option
       render json: { error: "Opção não encontrada" }, status: :not_found

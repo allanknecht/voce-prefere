@@ -25,7 +25,6 @@ Rails.application.routes.draw do
   get "admin", to: "admin#index", as: :admin_index
   get "admin/review", to: "admin#review", as: :admin_review
   post "admin/approve/:id", to: "admin#approve", as: :admin_approve
-  post "admin/reject/:id", to: "admin#reject", as: :admin_reject
 
   # Admin: manage ALL options (list / search / edit / delete with confirmation page)
   get "admin/options", to: "admin_options#index", as: :admin_options
@@ -34,7 +33,7 @@ Rails.application.routes.draw do
   patch "admin/options/:id", to: "admin_options#update", as: :admin_option
   delete "admin/options/:id", to: "admin_options#destroy"
 
-  # Admin: read-only log of deleted / rejected option texts
+  # Admin: read-only log of deleted option texts
   get "admin/deleted", to: "admin_deleted#index", as: :admin_deleted
 
   get "up" => "rails/health#show", as: :rails_health_check
