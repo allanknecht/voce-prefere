@@ -32,7 +32,9 @@ What the app does and does not do, with the code that enforces it. Verified by t
 
 - **Database:** raw IPs are never stored. The rate limiter stores `SHA256(secret + hour window + IP + action)` in
   `rate_limits`, with an expiry of at most 1 hour (`app/services/rate_limiter.rb`). Without the secret the hash
-  cannot be reversed, and the salt changes every hour.
+  cannot be reversed, and the salt changes every hour. The same table holds a 10-second "double vote" guard
+  (`SHA256(secret + window + IP + vote pair)`, expiring after 10 s): a repeated click on the same pair is not counted twice.
+  No cookie, no new personal data.
 - **Logs:** raw IPs never reach the Rails log. Rails' `Started GET "/" for <ip>` line is replaced by
   `Started GET "/" at <time>` (`lib/privacy/rack_logger.rb`, swapped in for `Rails::Rack::Logger`), and every logger,
   including each logger inside `ActiveSupport::BroadcastLogger`, additionally replaces any IPv4/IPv6 literal that

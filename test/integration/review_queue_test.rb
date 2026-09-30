@@ -98,7 +98,7 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     assert_match(/Ruim/, css_select("form#submit-form fieldset").text)
     assert_select "form#submit-form [style], form#submit-form [onclick], form#submit-form script", 0
     js = Rails.root.join("app/assets/javascripts/application.js").read
-    assert_match(/category: chosen\.value/, js)
+    assert_match(/category: category/, js)
     assert_no_match(%r{https?://}, js.gsub(%r{//.*$}, ""))
   end
 

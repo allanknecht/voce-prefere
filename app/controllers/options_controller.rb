@@ -26,6 +26,10 @@ class OptionsController < ApplicationController
     # No automatic filter of any kind: the option is live immediately and waits in the persistent
     # review queue (/admin/review) for the admin to Aprovar or Excluir it. Status and review
     # flag are fixed here, a client cannot set them.
+    # Duplicate (case/accent/space-insensitive): friendly refusal. The UNIQUE index on text_key
+    # catches two simultaneous identical submits that both passed this check.
+    return render_duplicate if Option.text_taken?(text)
+
     option = Option.new(text: text, category: category, status: "approved", needs_review: true)
 
     if option.save
@@ -38,6 +42,8 @@ class OptionsController < ApplicationController
     else
       render json: { error: option.errors.full_messages.join(", ") }, status: :unprocessable_entity
     end
+  rescue ActiveRecord::RecordNotUnique
+    render_duplicate
   end
 
   def report
@@ -61,6 +67,10 @@ class OptionsController < ApplicationController
   end
 
   private
+
+  def render_duplicate
+    render json: { error: "Essa opção já existe! Envie outra." }, status: :unprocessable_entity
+  end
 
   def hashed_ip
     request.remote_ip

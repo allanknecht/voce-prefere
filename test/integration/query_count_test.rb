@@ -51,14 +51,16 @@ class QueryCountTest < ActionDispatch::IntegrationTest
     assert_equal 0, count_queries { get "/up" }.size
   end
 
-  test "vote: at most 6 queries (was 11)" do
+  test "vote: at most 5 queries (was 11, then 10 with the duplicate guard)" do
     headers = public_post_headers
-    get root_path # warms the approved-options cache is irrelevant here: the vote checks the DB
+    get root_path
+    RateLimiter.last_cleanup = Process.clock_gettime(Process::CLOCK_MONOTONIC) # the expired-rows purge is throttled (once a minute per process)
+    Rails.cache.fetch("vp:pairs:approved") { Option.approved.order(:id).to_a }
     queries = count_queries do
       post votes_path, params: { option_id: @options[0].id, pair_hash: @pair_hash }.to_json, headers: headers
     end
     assert_response :success
-    assert_operator queries.size, :<=, 6, queries.join("\n")
+    assert_operator queries.size, :<=, 5, queries.join("\n")
   end
 
   test "no ORDER BY RANDOM anywhere in the public paths" do

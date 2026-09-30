@@ -18,6 +18,7 @@
       <%= yield %>
     </div>
     <%# Shown by application.js after 3 s of waiting (the free server sleeps when idle). %>
+    <p id="nav-error" class="slow-notice nav-error" role="alert" hidden></p>
     <p id="slow-notice" class="slow-notice" role="status" aria-live="polite" hidden>⏳ acordando o servidor...</p>
   </body>
 </html>

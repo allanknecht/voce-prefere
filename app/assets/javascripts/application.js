@@ -58,15 +58,42 @@
     document.querySelectorAll("[data-locked]").forEach(function (el) { el.disabled = false; delete el.dataset.locked; });
   });
 
-  // Plain navigation links: mark the clicked link, ignore further clicks until the page changes.
+  // Plain navigation links ("Próximo", ...): ONE click = ONE navigation. The clicked link is marked
+  // busy and further clicks are ignored until the page changes. If the navigation never happens
+  // (aborted by the browser, offline, server error page that does not replace the document) the
+  // link is unlocked after NAV_TIMEOUT_MS with a visible message, so it can never stay dead.
+  var NAV_TIMEOUT_MS = 25000;
+  var navError = document.getElementById("nav-error");
+  var navLock = false; // synchronous flag: set before anything else can run
+
+  function showNavError(text) {
+    if (!navError) return;
+    navError.textContent = text;
+    navError.hidden = !text;
+  }
+
   document.addEventListener("click", function (event) {
     var link = event.target.closest && event.target.closest("a[href]");
     if (!link) return;
-    if (isBusy(link)) { event.preventDefault(); return; }
+    if (navLock || isBusy(link)) { event.preventDefault(); return; }
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if ((link.target && link.target !== "_self") || link.hasAttribute("download")) return;
     if (link.origin !== window.location.origin || link.getAttribute("href").charAt(0) === "#") return;
+    navLock = true;
+    showNavError("");
     setBusy(link, true);
+    setTimeout(function () {
+      if (!navLock) return; // the page changed meanwhile (we would not be running) or was unlocked
+      navLock = false;
+      setBusy(link, false);
+      showNavError("Está demorando mais que o normal. Toque de novo para tentar outra vez.");
+    }, NAV_TIMEOUT_MS);
+  });
+
+  window.addEventListener("pageshow", function (event) {
+    if (!event.persisted) return;
+    navLock = false;
+    showNavError("");
   });
 
   // Regular (non-JS-handled) forms, e.g. the admin login / approve buttons.
@@ -84,11 +111,22 @@
     document.querySelectorAll("form[data-submitting]").forEach(function (form) { delete form.dataset.submitting; });
   });
 
+  // POST JSON with a timeout (AbortController): a hung request ends with an error instead of a
+  // locked page. `signal` lets the caller cancel a request that became obsolete. Always rejects on
+  // network errors / timeouts; resolves with the parsed body (errors carry {error: "..."}).
+  var REQUEST_TIMEOUT_MS = 15000;
+
   function postJSON(url, payload) {
     var headers = { "Content-Type": "application/json", "Accept": "application/json" };
     if (tokenMeta) headers["X-Form-Token"] = tokenMeta.content;
-    return fetch(url, { method: "POST", headers: headers, body: JSON.stringify(payload), credentials: "omit" })
-      .then(function (response) { return response.json(); });
+    var controller = typeof AbortController === "function" ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS) : null;
+    var options = { method: "POST", headers: headers, body: JSON.stringify(payload), credentials: "omit" };
+    if (controller) options.signal = controller.signal;
+    return fetch(url, options)
+      .then(function (response) { return response.json(); })
+      .then(function (data) { clearTimeout(timer); return data; },
+            function (error) { clearTimeout(timer); throw error; });
   }
 
   function copyToClipboard(text) {
@@ -137,31 +175,56 @@
 
     if (localStorage.getItem(votedKey)) showResults();
 
-    function lockVoting(locked) {
-      buttons.forEach(function (b) { b.disabled = locked; });
+    var voteMessage = document.getElementById("vote-message");
+    var voteLocked = false; // THE lock: set synchronously at the start of the handler, before any fetch
+
+    function say(text) {
+      if (!voteMessage) { if (text) alert(text); return; }
+      voteMessage.textContent = text;
+      voteMessage.hidden = !text;
+    }
+
+    // Every vote button at once: disabled + aria-disabled (+ CSS pointer-events: none / wait cursor).
+    function lockVoting(locked, chosen) {
+      container.classList.toggle("is-voting", locked);
+      buttons.forEach(function (b) {
+        b.disabled = locked;
+        if (locked) b.setAttribute("aria-disabled", "true"); else b.removeAttribute("aria-disabled");
+        b.classList.toggle("vote-chosen", locked && b === chosen);
+      });
+    }
+
+    function vote(button) {
+      if (voteLocked) return; // double click / double tap / Enter + click: ignored by the flag
+      if (localStorage.getItem(votedKey)) { showResults(); return; }
+      voteLocked = true;
+      lockVoting(true, button);
+      setBusy(button, true);
+      say("");
+
+      var finish = function () { setBusy(button, false); };
+      postJSON("/votes", { option_id: button.dataset.optionId, pair_hash: pairHash })
+        .then(function (data) {
+          if (data && data.success) {
+            localStorage.setItem(votedKey, "true");
+            updateResults(data.percentages, data.total_votes);
+            finish();
+            showResults(); // stays locked: there is nothing left to vote on
+          } else {
+            finish();
+            voteLocked = false; lockVoting(false);
+            say((data && data.error) || "Erro ao votar. Tente novamente.");
+          }
+        })
+        .catch(function () {
+          finish();
+          voteLocked = false; lockVoting(false);
+          say("Erro ao votar. Verifique a conexão e tente novamente.");
+        });
     }
 
     buttons.forEach(function (button) {
-      button.addEventListener("click", function () {
-        if (localStorage.getItem(votedKey)) { showResults(); return; }
-        if (isBusy(button)) return; // double click while the vote is in flight
-
-        lockVoting(true);
-        setBusy(button, true);
-
-        postJSON("/votes", { option_id: button.dataset.optionId, pair_hash: pairHash })
-          .then(function (data) {
-            if (data.success) {
-              localStorage.setItem(votedKey, "true");
-              updateResults(data.percentages, data.total_votes);
-              showResults();
-            } else {
-              alert(data.error || "Erro ao votar");
-            }
-          })
-          .catch(function () { alert("Erro ao votar. Tente novamente."); })
-          .then(function () { setBusy(button, false); lockVoting(false); });
-      });
+      button.addEventListener("click", function (event) { event.preventDefault(); vote(button); });
     });
 
     var share = document.getElementById("share-button");
@@ -209,32 +272,56 @@
 
     input.addEventListener("input", function () { counter.textContent = input.value.length; });
 
+    var submitLocked = false; // THE lock, set synchronously before the fetch
+    var fields = form.querySelectorAll("input, button");
+    var submitButton = form.querySelector('button[type="submit"]');
+    var submitLabel = submitButton.textContent;
+
+    function lockForm(locked) {
+      fields.forEach(function (field) {
+        if (field.id === "cancel-button") { field.disabled = locked; return; }
+        field.disabled = locked;
+        if (locked) field.setAttribute("aria-disabled", "true"); else field.removeAttribute("aria-disabled");
+      });
+      form.classList.toggle("is-submitting", locked);
+      submitButton.textContent = locked ? "Enviando..." : submitLabel;
+      if (locked) submitButton.setAttribute("aria-busy", "true"); else submitButton.removeAttribute("aria-busy");
+    }
+
     form.addEventListener("submit", function (event) {
       event.preventDefault();
+      if (submitLocked) return; // Enter + click, double tap...
       var text = input.value.trim();
       if (!text || text.length > 120) { say("Texto inválido (máx 120 caracteres)", false); return; }
       var chosen = form.querySelector('input[name="category"]:checked');
       if (!chosen) { say("Escolha se a opção é Boa ou Ruim", false); return; }
 
-      var submitButton = form.querySelector('button[type="submit"]');
-      if (isBusy(submitButton)) return;
-      setBusy(submitButton, true);
-      submitButton.disabled = true;
+      submitLocked = true;
+      var category = chosen.value; // read BEFORE the radios are disabled
+      lockForm(true);
+      say("Enviando...", true);
 
-      postJSON("/options", { text: text, category: chosen.value })
+      postJSON("/options", { text: text, category: category })
         .then(function (data) {
-          if (data.success) {
+          if (data && data.success) {
             say(data.message, true);
             input.value = "";
             counter.textContent = "0";
             chosen.checked = false;
+            lockForm(false);
+            submitLocked = false;
             setTimeout(function () { modal.classList.add("hidden"); }, 2000);
           } else {
-            say(data.error, false);
+            say((data && data.error) || "Erro ao enviar. Tente novamente.", false);
+            lockForm(false);
+            submitLocked = false;
           }
         })
-        .catch(function () { say("Erro ao enviar. Tente novamente.", false); })
-        .then(function () { setBusy(submitButton, false); submitButton.disabled = false; });
+        .catch(function () {
+          say("Erro ao enviar. Verifique a conexão e tente novamente.", false);
+          lockForm(false);
+          submitLocked = false;
+        });
     });
   }
 

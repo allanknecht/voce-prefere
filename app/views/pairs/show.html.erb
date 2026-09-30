@@ -6,7 +6,7 @@
 
 <%= render "shared/voting", pair: @pair, pair_hash: @pair_hash, percentages: @percentages,
            total_votes: @total_votes, votes_label: "votos",
-           next_link: { href: root_path, label: "▶️ Mais opções" } %>
+           next_link: { href: (@next_pair ? pair_path(PairGenerator.hash_for(*@next_pair)) : root_path), label: "▶️ Próximo" } %>
 
 <div class="mt-6 text-center">
   <a href="<%= root_path %>" class="inline-block text-white text-sm underline opacity-75 hover:opacity-100">

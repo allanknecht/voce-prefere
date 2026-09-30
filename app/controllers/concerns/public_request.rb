@@ -35,6 +35,12 @@ module PublicRequest
 
   private
 
+  # Pages that carry a random pair / a per-visitor form token must never be served from a cache
+  # (browser, Cloudflare): "private, no-cache" = always revalidate (back/forward still works).
+  def no_shared_cache
+    response.cache_control.replace(private: true, extras: [ "no-cache", "max-age=0" ])
+  end
+
   def public_form_token
     self.class.form_token_verifier.generate(SecureRandom.hex(8), purpose: FORM_TOKEN_PURPOSE, expires_in: FORM_TOKEN_TTL)
   end

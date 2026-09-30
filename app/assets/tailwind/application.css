@@ -38,6 +38,31 @@ a[aria-busy="true"]::after {
   }
 }
 
+/* Voting / submit lock: the moment a vote or a submit starts, EVERY vote button (or form field)
+   is disabled at once; the chosen one stays bright with a spinner, the others are dimmed. */
+[aria-disabled="true"] {
+  pointer-events: none;
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.is-voting .vote-button,
+.is-submitting input,
+.is-submitting button {
+  cursor: wait;
+  transform: none;
+}
+
+.vote-button.vote-chosen,
+.vote-button.vote-chosen[aria-disabled="true"] {
+  opacity: 1;
+  background: #fde047;
+}
+
+.is-submitting button[type="submit"] {
+  opacity: 0.85;
+}
+
 /* "acordando o servidor..." (shown after 3 s of waiting) */
 .slow-notice {
   position: fixed;
@@ -54,6 +79,11 @@ a[aria-busy="true"]::after {
   font-size: 0.875rem;
   box-shadow: 0 4px 0 #000;
   z-index: 60;
+}
+
+.nav-error {
+  background: #fca5a5;
+  bottom: 4rem;
 }
 
 .slow-notice[hidden] {

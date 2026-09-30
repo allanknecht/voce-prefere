@@ -14,6 +14,25 @@ class RateLimiter
     new(ip_address, action).record
   end
 
+  # true when `key` was NOT claimed by this visitor during the last `window`, and claims it now
+  # (false = a repeat: the caller should do nothing). ONE atomic statement (INSERT .. ON CONFLICT
+  # DO UPDATE .. WHERE expired .. RETURNING), so two simultaneous requests cannot both win.
+  # Stores only a salted SHA-256 of ip+key with an expiry of `window` (same table, same privacy).
+  def self.claim_once(ip_address, key, window)
+    now = Time.current
+    hashed = Digest::SHA256.hexdigest("#{new(ip_address, :vote).send(:salt_for_window)}:#{ip_address}:once:#{key}")
+    sql = RateLimit.sanitize_sql_array([
+      "INSERT INTO rate_limits (hashed_key, action, count, expires_at, created_at, updated_at) VALUES (?, 'once', 1, ?, ?, ?) " \
+      "ON CONFLICT (hashed_key) DO UPDATE SET expires_at = excluded.expires_at, updated_at = excluded.updated_at " \
+      "WHERE rate_limits.expires_at < excluded.created_at RETURNING hashed_key",
+      hashed, now + window, now, now
+    ])
+    RateLimit.connection.select_values(sql).any?
+  rescue => e
+    Rails.logger.error("Rate limiter claim error: #{e.message}")
+    true # fail open: never block a vote because of the guard
+  end
+
   def initialize(ip_address, action)
     @ip_address = ip_address
     @action = action.to_s
@@ -74,7 +93,17 @@ class RateLimiter
     @limit_config[:window]
   end
 
+  CLEANUP_EVERY = 60 # seconds: the purge is throttled per process (was one DELETE per request)
+  @last_cleanup = 0.0
+  class << self
+    attr_accessor :last_cleanup
+  end
+
   def cleanup_expired
+    now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    return if now - (self.class.last_cleanup || 0.0) < CLEANUP_EVERY
+
+    self.class.last_cleanup = now
     RateLimit.where("expires_at < ?", Time.current).delete_all
   rescue => e
     Rails.logger.error("Rate limit cleanup error: #{e.message}")
