@@ -42,7 +42,7 @@
 <div id="submit-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
   <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full border-4 border-black">
     <h2 class="text-2xl font-black mb-4">Envie sua opção!</h2>
-    <form id="submit-form">
+    <form id="submit-form" novalidate>
       <div class="mb-4">
         <label class="block font-bold mb-2">Eu prefiro...</label>
         <input 
@@ -56,6 +56,20 @@
           <span id="char-count">0</span>/120 caracteres
         </p>
       </div>
+      <fieldset class="mb-4">
+        <legend class="block font-bold mb-2">Essa opção é... <span class="text-red-600" aria-hidden="true">*</span></legend>
+        <div class="grid grid-cols-2 gap-3">
+          <label for="category-good" class="flex items-center justify-center gap-2 border-2 border-gray-300 rounded-lg px-3 py-3 font-bold cursor-pointer has-[:checked]:border-green-600 has-[:checked]:bg-green-100">
+            <input type="radio" name="category" id="category-good" value="good" required class="w-5 h-5">
+            👍 Boa
+          </label>
+          <label for="category-bad" class="flex items-center justify-center gap-2 border-2 border-gray-300 rounded-lg px-3 py-3 font-bold cursor-pointer has-[:checked]:border-red-600 has-[:checked]:bg-red-100">
+            <input type="radio" name="category" id="category-bad" value="bad" required class="w-5 h-5">
+            👎 Ruim
+          </label>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Boa = algo legal de ter ou fazer. Ruim = dor, nojo ou situação ruim (as duas opções de um par são sempre do mesmo tipo).</p>
+      </fieldset>
       <div class="flex gap-3">
         <button type="submit" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg">
           Enviar
