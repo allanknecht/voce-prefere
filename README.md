@@ -33,7 +33,7 @@ Development/test need no environment variables (the admin password in developmen
 ### Tests and checks
 
 ```bash
-RAILS_ENV=test bin/rails db:prepare test   # unit, controller and integration tests
+RAILS_ENV=test bin/rails db:prepare && bin/rails test   # unit, controller and integration tests
 bin/rubocop
 bin/brakeman --no-pager
 bin/bundler-audit

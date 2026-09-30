@@ -51,4 +51,4 @@ jobs:
       - name: Run tests
         env:
           RAILS_ENV: test
-        run: bin/rails db:prepare test
+        run: bin/rails db:prepare && bin/rails test
