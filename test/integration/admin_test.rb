@@ -213,14 +213,14 @@ class AdminTest < ActionDispatch::IntegrationTest
 
   test "approve without CSRF token is rejected and changes nothing" do
     login!
-    post admin_approve_path(@option)
+    post admin_approve_path(@option), headers: BROWSER_ADMIN_HEADERS
     assert_response :unprocessable_entity
     assert @option.reload.needs_review
   end
 
   test "reject without CSRF token is rejected and changes nothing" do
     login!
-    post admin_reject_path(@option)
+    post admin_reject_path(@option), headers: BROWSER_ADMIN_HEADERS
     assert_response :unprocessable_entity
     assert Option.exists?(@option.id)
   end
@@ -228,20 +228,20 @@ class AdminTest < ActionDispatch::IntegrationTest
   test "approve and reject work with the CSRF token rendered in the admin page" do
     login!
     token = csrf_token_from(admin_review_path, action: admin_approve_path(@option))
-    post admin_approve_path(@option), params: { authenticity_token: token }
+    post admin_approve_path(@option), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_redirected_to admin_review_path
     assert_equal "approved", @option.reload.status
     refute @option.needs_review
 
     other = Option.create!(text: "Outra em revisão", status: "approved", needs_review: true)
     token = csrf_token_from(admin_review_path, action: admin_reject_path(other))
-    post admin_reject_path(other), params: { authenticity_token: token }
+    post admin_reject_path(other), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_redirected_to admin_review_path
     refute Option.exists?(other.id)
   end
 
   test "approve requires authentication" do
-    post admin_approve_path(@option)
+    post admin_approve_path(@option), headers: BROWSER_ADMIN_HEADERS
     assert_includes [ 302, 422 ], response.status
     assert @option.reload.needs_review
   end
@@ -249,7 +249,7 @@ class AdminTest < ActionDispatch::IntegrationTest
   test "logout clears the session" do
     login!
     token = csrf_token_from(admin_index_path, action: admin_logout_path)
-    delete admin_logout_path, params: { authenticity_token: token }
+    delete admin_logout_path, params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     get admin_index_path
     assert_redirected_to admin_login_path
   end

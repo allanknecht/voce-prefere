@@ -41,9 +41,9 @@ class AdminOptionsTest < ActionDispatch::IntegrationTest
     assert_redirected_to admin_login_path
     get confirm_delete_admin_option_path(option)
     assert_redirected_to admin_login_path
-    patch admin_option_path(option), params: { option: { text: "Hackeada" } }
+    patch admin_option_path(option), params: { option: { text: "Hackeada" } }, headers: BROWSER_ADMIN_HEADERS
     assert_includes [ 302, 422 ], response.status
-    delete admin_option_path(option)
+    delete admin_option_path(option), headers: BROWSER_ADMIN_HEADERS
     assert_includes [ 302, 422 ], response.status
     assert_equal "Protegida", option.reload.text
     assert Option.exists?(option.id)
@@ -142,7 +142,7 @@ class AdminOptionsTest < ActionDispatch::IntegrationTest
     assert_select "form[action*='/admin/options/#{a.id}'] input[name=_method][value=patch]"
 
     token = csrf_for(edit_admin_option_path(a), action: admin_option_path(a))
-    patch admin_option_path(a, q: "velho"), params: { option: { text: "  Texto novo  " }, authenticity_token: token }
+    patch admin_option_path(a, q: "velho"), params: { option: { text: "  Texto novo  " }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_redirected_to admin_options_path(q: "velho")
     assert_equal "Texto novo", a.reload.text
     assert_equal "approved", a.status
@@ -155,7 +155,7 @@ class AdminOptionsTest < ActionDispatch::IntegrationTest
     login!
     token = csrf_for(edit_admin_option_path(a), action: admin_option_path(a))
     [ "   ", "x" * 121 ].each do |bad|
-      patch admin_option_path(a), params: { option: { text: bad }, authenticity_token: token }
+      patch admin_option_path(a), params: { option: { text: bad }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
       assert_response :unprocessable_entity
       assert_equal "Original", a.reload.text
     end
@@ -166,13 +166,13 @@ class AdminOptionsTest < ActionDispatch::IntegrationTest
     b = make("Outra coisa")
     login!
     token = csrf_for(edit_admin_option_path(b), action: admin_option_path(b))
-    patch admin_option_path(b), params: { option: { text: "COMER ACAI", force: "1" }, authenticity_token: token }
+    patch admin_option_path(b), params: { option: { text: "COMER ACAI", force: "1" }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_response :unprocessable_entity
     assert_match(/já existe/, response.body)
     assert_equal "Outra coisa", b.reload.text
 
     token_a = csrf_for(edit_admin_option_path(a), action: admin_option_path(a))
-    patch admin_option_path(a), params: { option: { text: "Comer açaí " }, authenticity_token: token_a }
+    patch admin_option_path(a), params: { option: { text: "Comer açaí " }, authenticity_token: token_a }, headers: BROWSER_ADMIN_HEADERS
     assert_redirected_to admin_options_path
   end
 
@@ -183,13 +183,13 @@ class AdminOptionsTest < ActionDispatch::IntegrationTest
     flagged = "Votar em João Silva" # full-name heuristic, deterministic without env blocklists
     assert_equal false, ContentModerator.check(flagged)[:approved]
 
-    patch admin_option_path(a), params: { option: { text: flagged }, authenticity_token: token }
+    patch admin_option_path(a), params: { option: { text: flagged }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_response :unprocessable_entity
     assert_match(/filtro de moderação/, response.body)
     assert_select "input[type=checkbox][name='option[force]']"
     assert_equal "Texto limpo", a.reload.text
 
-    patch admin_option_path(a), params: { option: { text: flagged, force: "1" }, authenticity_token: token }
+    patch admin_option_path(a), params: { option: { text: flagged, force: "1" }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_redirected_to admin_options_path
     assert_equal flagged, a.reload.text
     assert_equal "approved", a.status
@@ -229,7 +229,7 @@ class AdminOptionsTest < ActionDispatch::IntegrationTest
     login!
     token = csrf_for(confirm_delete_admin_option_path(a), action: admin_option_path(a))
     assert_difference -> { Option.count }, -1 do
-      delete admin_option_path(a, status: "aprovadas"), params: { authenticity_token: token }
+      delete admin_option_path(a, status: "aprovadas"), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     end
     assert_redirected_to admin_options_path(status: "aprovadas")
     assert_equal 0, Vote.where(option_id: a.id).count
@@ -269,11 +269,11 @@ class AdminOptionsTest < ActionDispatch::IntegrationTest
   test "PATCH and DELETE without the authenticity token are rejected and change nothing" do
     a = make("Sem token")
     login!
-    patch admin_option_path(a), params: { option: { text: "Mudou" } }
+    patch admin_option_path(a), params: { option: { text: "Mudou" } }, headers: BROWSER_ADMIN_HEADERS
     assert_response :unprocessable_entity
-    delete admin_option_path(a)
+    delete admin_option_path(a), headers: BROWSER_ADMIN_HEADERS
     assert_response :unprocessable_entity
-    patch admin_option_path(a), params: { option: { text: "Mudou" }, authenticity_token: "forged" }
+    patch admin_option_path(a), params: { option: { text: "Mudou" }, authenticity_token: "forged" }, headers: BROWSER_ADMIN_HEADERS
     assert_response :unprocessable_entity
     a.reload
     assert_equal "Sem token", a.text

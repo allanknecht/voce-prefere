@@ -143,7 +143,7 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     option = make("Denunciada", needs_review: true, report_count: 2)
     login!
     token = csrf_for(admin_review_path, action: admin_approve_path(option))
-    post admin_approve_path(option), params: { authenticity_token: token }
+    post admin_approve_path(option), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_redirected_to admin_review_path
     option.reload
     assert_equal [ "approved", false, 0 ], [ option.status, option.needs_review, option.report_count ]
@@ -159,7 +159,7 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     login!
     token = csrf_for(admin_review_path, action: admin_reject_path(a))
     assert_difference -> { DeletedOption.count }, 1 do
-      post admin_reject_path(a), params: { authenticity_token: token }
+      post admin_reject_path(a), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     end
     refute Option.exists?(a.id)
     assert_equal 0, Vote.where(pair_hash: PairGenerator.hash_for(a, b)).count
@@ -171,9 +171,9 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
 
   test "approve/reject need the admin session and the CSRF token" do
     option = make("Protegida", needs_review: true)
-    post admin_approve_path(option)
+    post admin_approve_path(option), headers: BROWSER_ADMIN_HEADERS
     assert_includes [ 302, 422 ], response.status
-    post admin_reject_path(option)
+    post admin_reject_path(option), headers: BROWSER_ADMIN_HEADERS
     assert_includes [ 302, 422 ], response.status
     assert Option.exists?(option.id)
     assert option.reload.needs_review
@@ -286,7 +286,7 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     login!
     token = csrf_for(edit_admin_option_path(option), action: admin_option_path(option))
     assert_select "input[type=radio][name='option[category]'][value=bad]"
-    patch admin_option_path(option), params: { option: { text: "Mudar de lado", category: "bad" }, authenticity_token: token }
+    patch admin_option_path(option), params: { option: { text: "Mudar de lado", category: "bad" }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_redirected_to admin_options_path
     assert_equal "bad", option.reload.category
     assert_equal "bad", PairGenerator.new.send(:approved_options).find { |o| o.id == option.id }.category
@@ -296,7 +296,7 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     option = make("Fica boa", category: "good")
     login!
     token = csrf_for(edit_admin_option_path(option), action: admin_option_path(option))
-    patch admin_option_path(option), params: { option: { text: "Fica boa", category: "hacked" }, authenticity_token: token }
+    patch admin_option_path(option), params: { option: { text: "Fica boa", category: "hacked" }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_equal "good", option.reload.category
   end
 
@@ -304,7 +304,7 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     option = make("Texto normal")
     login!
     token = csrf_for(edit_admin_option_path(option), action: admin_option_path(option))
-    patch admin_option_path(option), params: { option: { text: "Votar em João Silva" }, authenticity_token: token }
+    patch admin_option_path(option), params: { option: { text: "Votar em João Silva" }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_response :unprocessable_entity
     assert_match(/filtro de moderação/, response.body)
   end

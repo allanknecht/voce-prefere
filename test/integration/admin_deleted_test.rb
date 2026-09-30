@@ -71,7 +71,7 @@ class AdminDeletedTest < ActionDispatch::IntegrationTest
     login!
     token = csrf_for(confirm_delete_admin_option_path(option), action: admin_option_path(option))
     assert_difference -> { DeletedOption.count }, 1 do
-      delete admin_option_path(option), params: { authenticity_token: token }
+      delete admin_option_path(option), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     end
     entry = DeletedOption.last
     assert_equal [ "Vai pro log", "bad", "manual" ], [ entry.text, entry.category, entry.reason ]
@@ -85,7 +85,7 @@ class AdminDeletedTest < ActionDispatch::IntegrationTest
     login!
     token = csrf_for(admin_review_path, action: admin_reject_path(option))
     assert_difference -> { DeletedOption.count }, 1 do
-      post admin_reject_path(option), params: { authenticity_token: token }
+      post admin_reject_path(option), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     end
     refute Option.exists?(option.id), "Reprovar deletes the option for good"
     assert_equal [ "Reprovada na fila", "reprovada" ], DeletedOption.last.then { |e| [ e.text, e.reason ] }
