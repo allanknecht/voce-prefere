@@ -4,8 +4,9 @@
 # * CSRF without cookies: because there is no session we cannot use Rails' session
 #   based authenticity token. Every state-changing request (vote / submit / report)
 #   is instead verified statelessly:
-#     1. Sec-Fetch-Site (if sent by the browser) must not be "cross-site";
-#     2. Origin (or, as a fallback, Referer) must match this site's own origin;
+#     1. Sec-Fetch-Site must be "same-origin" (browsers send `Origin: null` under our
+#        no-referrer policy, so Origin alone is not usable); only old browsers without
+#        that header fall back to an Origin/Referer host comparison (see StatelessCsrf);
 #     3. a short-lived, signed, purpose-bound token, embedded in the page as
 #        <meta name="form-token"> and echoed by our JS in the X-Form-Token header,
 #        must be valid.

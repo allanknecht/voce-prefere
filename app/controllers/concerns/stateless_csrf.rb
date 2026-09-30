@@ -3,8 +3,9 @@
 # Rails' regular authenticity token lives in the session, i.e. in a cookie. Where we must not
 # hand out a cookie before it is needed (the public pages, GET /admin/login), a request is
 # instead verified statelessly:
-#   1. Sec-Fetch-Site (if sent by the browser) must not be "cross-site";
-#   2. Origin (or, as a fallback, Referer) must match this site's own origin;
+#   1. Sec-Fetch-Site must be "same-origin" (or, in old browsers without it, Origin/Referer must
+#      have this site's host);
+#   2. (see same_origin_request? for the details, incl. `Origin: null` under no-referrer)
 #   3. a short-lived, signed, purpose-bound token, embedded in the page we served, must be echoed.
 # Cross-site pages cannot forge (1) and (2) from a browser and cannot read our HTML to get (3).
 module StatelessCsrf
@@ -25,21 +26,25 @@ module StatelessCsrf
     token.present? && stateless_token_verifier(purpose).verified(token, purpose: purpose).present?
   end
 
+  # Is this state-changing request provably from one of our own pages?
+  #
+  # * Sec-Fetch-Site (sent by all current browsers, cannot be set by pages) decides when present:
+  #   only "same-origin" passes. "none" (user typed the URL / bookmark) makes no sense for a
+  #   POST, and "same-site" / "cross-site" are other origins.
+  # * Why not just compare Origin? We send `Referrer-Policy: no-referrer`, and browsers then
+  #   send `Origin: null` (and no Referer) even on same-origin form / fetch POSTs.
+  # * Only when Sec-Fetch-Site is absent (old browsers) fall back to Origin, then Referer,
+  #   compared by HOST (not scheme/port: behind the TLS-terminating proxy the scheme the app
+  #   sees may differ). "null" or neither header => rejected.
   def same_origin_request?
-    fetch_site = request.headers["Sec-Fetch-Site"]
-    return false if fetch_site.present? && !%w[same-origin none].include?(fetch_site)
+    fetch_site = request.headers["Sec-Fetch-Site"].to_s.strip.downcase
+    return fetch_site == "same-origin" if fetch_site.present?
 
-    origin = request.origin.presence
-    return origin == request.base_url if origin
+    source = request.origin.presence || request.referer.presence
+    return false if source.nil? || source == "null"
 
-    referer = request.referer.presence
-    return false unless referer
-
-    uri = URI.parse(referer)
-    return false unless uri.scheme && uri.host
-
-    referer_origin = "#{uri.scheme}://#{uri.host}#{":#{uri.port}" if uri.port && uri.port != uri.default_port}"
-    referer_origin == request.base_url
+    host = URI.parse(source).host.to_s.downcase
+    host.present? && host == request.host.to_s.downcase
   rescue URI::InvalidURIError
     false
   end
