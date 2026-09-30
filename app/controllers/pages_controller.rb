@@ -1,22 +1,19 @@
 class PagesController < ApplicationController
   include PublicRequest
+  include PublicCaching
 
+  # The random pair MUST stay random per request, so the home page is never cached.
   def home
     @pair = PairGenerator.random_pair
 
     if @pair
-      @pair_hash = generate_pair_hash(@pair[0], @pair[1])
-      @percentages = Vote.pair_stats(@pair_hash)
-      @total_votes = Vote.where(pair_hash: @pair_hash).count
+      @pair_hash = PairGenerator.hash_for(@pair[0], @pair[1])
+      @percentages, @total_votes = Vote.pair_summary(@pair_hash)
     end
   end
 
+  # Static, identical for every visitor: cacheable by browsers and shared caches.
   def about
-  end
-
-  private
-
-  def generate_pair_hash(option1, option2)
-    [ option1.id, option2.id ].sort.join("-")
+    cache_publicly(10.minutes)
   end
 end

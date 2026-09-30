@@ -23,16 +23,13 @@ class VotesController < ApplicationController
       return
     end
 
-    Vote.create!(
-      option_id: option_id,
-      pair_hash: pair_hash
-    )
+    # `option:` (already loaded) spares the extra SELECT of the belongs_to presence validation
+    Vote.create!(option: option, pair_hash: pair_hash)
 
     RateLimiter.record(hashed_ip, :vote)
 
-    # Get updated percentages
-    percentages = Vote.pair_stats(pair_hash)
-    total_votes = Vote.where(pair_hash: pair_hash).count
+    # Updated percentages and total from ONE grouped query
+    percentages, total_votes = Vote.pair_summary(pair_hash)
 
     render json: {
       success: true,

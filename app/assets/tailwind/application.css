@@ -1,1 +1,74 @@
 @import "tailwindcss";
+
+/* ---- Loading state (see app/assets/javascripts/application.js) -------------------------
+   The clicked button / link / submit gets aria-busy="true": a small spinner after its label,
+   slightly dimmed, no pointer events (double-click protection). First-party CSS only. */
+[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
+
+button[aria-busy="true"]:disabled {
+  cursor: progress;
+}
+
+button[aria-busy="true"]::after,
+a[aria-busy="true"]::after {
+  content: "";
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-left: 0.5em;
+  vertical-align: -0.1em;
+  border: 0.15em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 9999px;
+  animation: vp-spin 0.7s linear infinite;
+}
+
+@keyframes vp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* "acordando o servidor..." (shown after 3 s of waiting) */
+.slow-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 2rem);
+  padding: 0.5rem 1rem;
+  border: 3px solid #000;
+  border-radius: 1rem;
+  background: #fde047;
+  color: #111827;
+  font-weight: 800;
+  font-size: 0.875rem;
+  box-shadow: 0 4px 0 #000;
+  z-index: 60;
+}
+
+.slow-notice[hidden] {
+  display: none;
+}
+
+/* Reduced motion: no spinning and no fade; the busy state is still visible (dim + "…"). */
+@media (prefers-reduced-motion: reduce) {
+  button[aria-busy="true"]::after,
+  a[aria-busy="true"]::after {
+    content: "…";
+    width: auto;
+    height: auto;
+    border: 0;
+    animation: none;
+    vertical-align: baseline;
+  }
+}

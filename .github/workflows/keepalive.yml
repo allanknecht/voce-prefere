@@ -1,0 +1,25 @@
+name: Keepalive
+
+# Pings /up every 10 minutes so the Render free web service (sleeps after 15 min without
+# traffic) stays awake. /up does not touch the database (Rails' built-in health check), so
+# this does NOT keep Neon awake. Read-only: no secrets, no checkout, no permissions.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /up
+        env:
+          URL: ${{ vars.KEEPALIVE_URL || 'https://voce-prefere-mqqy.onrender.com' }}
+        run: curl -fsS --max-time 60 "$URL/up"

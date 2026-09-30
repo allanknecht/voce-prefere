@@ -47,7 +47,8 @@ class SecurityHeadersTest < ActionDispatch::IntegrationTest
   test "admin pages have no inline scripts either" do
     https!
     get admin_login_path
-    post admin_login_path, params: { secret: AdminSecret.value, authenticity_token: css_select("input[name=authenticity_token]").first["value"] }
+    post admin_login_path, params: { secret: AdminSecret.value, login_token: css_select("input[name=login_token]").first["value"] },
+         headers: { "Origin" => "https://www.example.com" }
     get admin_index_path
     assert_response :success
     assert_select "script:not([src])", 0

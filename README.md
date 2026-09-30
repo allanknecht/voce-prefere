@@ -33,7 +33,7 @@ Development/test need no environment variables (the admin password in developmen
 ### Tests and checks
 
 ```bash
-RAILS_ENV=test bin/rails db:prepare test   # unit, controller and integration tests
+RAILS_ENV=test bin/rails db:prepare && bin/rails test   # unit, controller and integration tests
 bin/rubocop
 bin/brakeman --no-pager
 bin/bundler-audit
@@ -62,12 +62,26 @@ Render (free web service) + Neon (free Postgres) via the included `Dockerfile` a
 Render's free tier has **no persistent disk** and the service **sleeps after 15 minutes without traffic**
 (the next request takes ~30–60 s). Full guide: [DEPLOYMENT.md](DEPLOYMENT.md).
 
+### Keep-alive (optional)
+
+`.github/workflows/keepalive.yml` calls `GET /up` every 10 minutes (and on demand via *Run workflow*), so the
+Render free web service does not fall asleep after 15 idle minutes. The URL comes from the repository variable
+`KEEPALIVE_URL` (Settings → Secrets and variables → Actions → Variables) and defaults to the production URL. The workflow has no secrets and no permissions.
+
+- `/up` deliberately does **not** touch the database: it keeps the *web service* awake, but **Neon may still
+  wake up (a few seconds) on the first request that needs the database**. This also keeps Neon's compute-hours low.
+- GitHub **disables scheduled workflows after 60 days without repository activity**: push a commit or re-enable
+  the workflow in the *Actions* tab if the pings stop. Scheduled runs can also be delayed by several minutes.
+
 ## Admin panel
 
 Open `/admin/login` and submit the password in the form (it is never accepted in a URL / query string).
 After login you can approve/reject pending and reported options. The session lasts 1 hour and lives in a
-cookie that is `Secure`, `HttpOnly`, `SameSite=Strict` and limited to `Path=/admin`. Approve/reject/logout are
-protected by Rails' session-based CSRF tokens. Login attempts are rate limited.
+cookie that is `Secure`, `HttpOnly`, `SameSite=Strict` and limited to `Path=/admin`. The cookie is only issued
+**after a successful login**: `GET /admin/login` (visited by anonymous users and scanners) sets no cookie. The login
+POST is protected without a session by a same-origin check (`Sec-Fetch-Site`/`Origin`/`Referer`) plus a signed,
+purpose-bound, 1-hour token in the form, and by the brute-force throttle. Approve/reject/logout are protected by
+Rails' session-based CSRF tokens. Login attempts are rate limited.
 
 ## Content moderation
 

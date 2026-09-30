@@ -10,6 +10,7 @@ end
 
 require_relative "support/public_request_helper"
 require_relative "support/production_boot"
+require_relative "support/query_counter"
 
 module ActiveSupport
   class TestCase
@@ -24,5 +25,6 @@ module ActiveSupport
 end
 
 class ActionDispatch::IntegrationTest
+  include QueryCounter
   include PublicRequestHelper
 end

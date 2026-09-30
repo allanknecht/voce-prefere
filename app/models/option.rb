@@ -11,6 +11,10 @@ class Option < ApplicationRecord
 
   before_validation :set_defaults, on: :create
 
+  # Any change (approve, reject, report, new submission, ...) drops the cached lists built
+  # from approved options (see PairGenerator), so moderation shows up immediately.
+  after_commit { PairGenerator.expire_caches! }
+
   def approve!
     update!(status: "approved", report_count: 0)
   end

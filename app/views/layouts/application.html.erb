@@ -3,8 +3,9 @@
   <head>
     <title><%= content_for(:title) || "Você Prefere?" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <% if respond_to?(:public_form_token) %>
-      <%# Stateless anti-CSRF token for the public forms (this site sets no cookies). See PublicRequest. %>
+    <% if respond_to?(:public_form_token) && !@skip_form_token %>
+      <%# Stateless anti-CSRF token for the public forms (this site sets no cookies). See PublicRequest.
+         Omitted on publicly cached pages (no forms there, see PublicCaching). %>
       <meta name="form-token" content="<%= public_form_token %>">
     <% end %>
     <%# Security headers (CSP, HSTS, ...) are sent as real HTTP headers, see config/initializers/. %>
@@ -16,5 +17,7 @@
     <div class="container mx-auto px-4 py-6 max-w-2xl">
       <%= yield %>
     </div>
+    <%# Shown by application.js after 3 s of waiting (the free server sleeps when idle). %>
+    <p id="slow-notice" class="slow-notice" role="status" aria-live="polite" hidden>⏳ acordando o servidor...</p>
   </body>
 </html>
