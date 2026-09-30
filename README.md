@@ -88,7 +88,9 @@ Rails' session-based CSRF tokens. Login attempts are rate limited.
 - **Categories:** every option is `good` (something nice to have/do) or `bad` (pain, gross, violent, a "lesser evil"
   dilemma). **Pairs are only built inside one category** (good × good, bad × bad), on the home page, in "Par do Dia" and
   in the controversial ranking (old mixed pairs are no longer ranked). A category is drawn proportionally to its number
-  of options; a category with a single option cannot form a pair. The category is guessed by `OptionClassifier`
+  of options; a category with a single option cannot form a pair. In the **submission form the user chooses Boa or Ruim**
+  (required radio buttons, nothing preselected; the server answers 422 "Escolha se a opção é Boa ou Ruim" when it is missing
+  or invalid). `OptionClassifier` is only a fallback for non-form paths and the data migration, where the category is guessed
   (accent/case-insensitive whole-word signals: body/sex/gross, pain/violence, scary animals, "por 10 anos"/"3x ao dia"
   penalties, ...; anything else is good) and can be changed in `/admin/options` (edit page, plus a category filter).
 - **No automatic moderation of new submissions.** A submitted option is **live immediately** and enters the

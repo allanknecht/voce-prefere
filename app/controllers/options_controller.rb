@@ -15,10 +15,18 @@ class OptionsController < ApplicationController
       return
     end
 
-    # No automatic moderation: the option is live immediately, in a good/bad category guessed by
-    # OptionClassifier, and waits in the persistent review queue (/admin/review) for the admin
-    # to Aprovar or Reprovar it.
-    option = Option.new(text: text, status: "approved", needs_review: true)
+    # The submitter CHOOSES the category (Boa = good / Ruim = bad): required, no guessing for
+    # public submissions (OptionClassifier is only a fallback for other paths / the migration).
+    category = params[:category].to_s
+    unless OptionClassifier::CATEGORIES.include?(category)
+      render json: { error: "Escolha se a opção é Boa ou Ruim" }, status: :unprocessable_entity
+      return
+    end
+
+    # No automatic moderation: the option is live immediately and waits in the persistent
+    # review queue (/admin/review) for the admin to Aprovar or Reprovar it. Status and review
+    # flag are fixed here, a client cannot set them.
+    option = Option.new(text: text, category: category, status: "approved", needs_review: true)
 
     if option.save
       RateLimiter.record(hashed_ip, :submit)

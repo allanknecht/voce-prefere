@@ -39,7 +39,7 @@ class PrivacyTest < ActionDispatch::IntegrationTest
 
   test "POST /options sets no cookie" do
     post options_path,
-         params: { text: "Clean option" }.to_json,
+         params: { text: "Clean option", category: "good" }.to_json,
          headers: public_post_headers
 
     assert_response :success

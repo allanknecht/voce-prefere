@@ -199,6 +199,7 @@
       input.value = "";
       counter.textContent = "0";
       message.textContent = "";
+      form.querySelectorAll('input[name="category"]').forEach(function (radio) { radio.checked = false; }); // nothing preselected
       input.focus();
     });
 
@@ -212,18 +213,21 @@
       event.preventDefault();
       var text = input.value.trim();
       if (!text || text.length > 120) { say("Texto inválido (máx 120 caracteres)", false); return; }
+      var chosen = form.querySelector('input[name="category"]:checked');
+      if (!chosen) { say("Escolha se a opção é Boa ou Ruim", false); return; }
 
       var submitButton = form.querySelector('button[type="submit"]');
       if (isBusy(submitButton)) return;
       setBusy(submitButton, true);
       submitButton.disabled = true;
 
-      postJSON("/options", { text: text })
+      postJSON("/options", { text: text, category: chosen.value })
         .then(function (data) {
           if (data.success) {
             say(data.message, true);
             input.value = "";
             counter.textContent = "0";
+            chosen.checked = false;
             setTimeout(function () { modal.classList.add("hidden"); }, 2000);
           } else {
             say(data.error, false);

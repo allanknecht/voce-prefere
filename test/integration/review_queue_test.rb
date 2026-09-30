@@ -28,21 +28,43 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
 
   # ---- new options: live immediately + in the queue, no automatic moderation ------------------------
 
-  test "a submitted option is approved (live) at once, in the review queue, with a guessed category" do
-    post options_path, params: { text: "Chutar a parede com um prego" }.to_json, headers: public_post_headers
-    assert_response :success
-    option = Option.find_by!(text: "Chutar a parede com um prego")
-    assert_equal "approved", option.status
-    assert option.needs_review
-    assert_equal "bad", option.category
-    assert_includes Option.approved, option
-    assert_nil response.headers["Set-Cookie"]
+  def submit(attrs)
+    post options_path, params: attrs.to_json, headers: public_post_headers
+  end
+
+  test "a submitted option is approved (live) at once and in the review queue, with the category the user chose" do
+    { "good" => "Poder voar", "bad" => "Chutar a parede com um prego" }.each do |category, text|
+      submit(text: text, category: category)
+      assert_response :success
+      option = Option.find_by!(text: text)
+      assert_equal [ "approved", true, category ], [ option.status, option.needs_review, option.category ]
+      assert_includes Option.approved, option
+      assert_nil response.headers["Set-Cookie"]
+    end
+  end
+
+  test "the chosen category wins over the classifier (no guessing for public submissions)" do
+    submit(text: "Chutar a parede com um prego", category: "good")
+    assert_equal "good", Option.find_by!(text: "Chutar a parede com um prego").category
+    submit(text: "Ter super velocidade agora", category: "bad")
+    assert_equal "bad", Option.find_by!(text: "Ter super velocidade agora").category
+  end
+
+  test "a missing or invalid category is refused with a clear message and nothing is created" do
+    [ {}, { category: "" }, { category: nil }, { category: "GOOD" }, { category: "meh" }, { category: "boa" }, { category: [ "good" ] }, { category: { a: 1 } } ].each do |extra|
+      assert_no_difference -> { Option.count } do
+        submit({ text: "Sem categoria válida" }.merge(extra))
+      end
+      assert_response :unprocessable_entity, extra.inspect
+      assert_equal "Escolha se a opção é Boa ou Ruim", response.parsed_body["error"]
+      assert_nil response.headers["Set-Cookie"]
+    end
   end
 
   test "there is no automatic moderation of new options: even text the blocklist flags goes live" do
     ENV["MODERATION_BLOCKLIST"] = "palavraoteste"
     ContentModerator.reset_lists!
-    post options_path, params: { text: "Dizer palavraoteste" }.to_json, headers: public_post_headers
+    submit(text: "Dizer palavraoteste", category: "bad")
     option = Option.find_by!(text: "Dizer palavraoteste")
     assert_equal "approved", option.status
     assert option.needs_review
@@ -52,16 +74,35 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
   end
 
   test "submission keeps the length/blank validation and the rate limit" do
-    post options_path, params: { text: "x" * 121 }.to_json, headers: public_post_headers
+    submit(text: "x" * 121, category: "good")
     assert_response :unprocessable_entity
-    post options_path, params: { text: "  " }.to_json, headers: public_post_headers
+    submit(text: "  ", category: "good")
     assert_response :unprocessable_entity
+    5.times { |i| submit(text: "Opção limite #{i}", category: "good") }
+    assert_response :success
+    submit(text: "Opção além do limite", category: "good")
+    assert_response :too_many_requests
+    assert_nil Option.find_by(text: "Opção além do limite")
   end
 
-  test "a public client cannot choose the category, status or review flag" do
-    post options_path, params: { text: "Poder voar baixinho", category: "bad", status: "rejected", needs_review: false }.to_json, headers: public_post_headers
+  test "a public client cannot choose the status, review flag or report count" do
+    submit(text: "Poder voar baixinho", category: "bad", status: "rejected", needs_review: false, report_count: 9, is_seed: true)
     option = Option.find_by!(text: "Poder voar baixinho")
-    assert_equal [ "good", "approved", true ], [ option.category, option.status, option.needs_review ]
+    assert_equal [ "bad", "approved", true, 0, false ], [ option.category, option.status, option.needs_review, option.report_count, option.is_seed ]
+  end
+
+  test "the home page form has a required Boa/Ruim choice, nothing preselected, labelled in PT-BR" do
+    get root_path
+    assert_select "form#submit-form fieldset input[type=radio][name=category]", 2
+    assert_select "input[type=radio][name=category][value=good][required]"
+    assert_select "input[type=radio][name=category][value=bad][required]"
+    assert_select "input[type=radio][name=category][checked]", 0
+    assert_match(/Boa/, css_select("form#submit-form fieldset").text)
+    assert_match(/Ruim/, css_select("form#submit-form fieldset").text)
+    assert_select "form#submit-form [style], form#submit-form [onclick], form#submit-form script", 0
+    js = Rails.root.join("app/assets/javascripts/application.js").read
+    assert_match(/category: chosen\.value/, js)
+    assert_no_match(%r{https?://}, js.gsub(%r{//.*$}, ""))
   end
 
   # ---- queue page --------------------------------------------------------------------------

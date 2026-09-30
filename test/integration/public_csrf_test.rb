@@ -104,7 +104,7 @@ class PublicCsrfTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
     assert_nil Option.find_by(text: "Sem token")
 
-    post options_path, params: { text: "Com token" }.to_json, headers: public_post_headers
+    post options_path, params: { text: "Com token", category: "good" }.to_json, headers: public_post_headers
     assert_response :success
     assert Option.find_by(text: "Com token")
     assert_nil response.headers["Set-Cookie"]
