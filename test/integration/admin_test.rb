@@ -102,6 +102,65 @@ class AdminTest < ActionDispatch::IntegrationTest
     assert_redirected_to admin_login_path
   end
 
+  # ---- same-origin evidence (Referrer-Policy: no-referrer => browsers send "Origin: null") ----
+
+  def post_login(secret:, headers:, token: login_token)
+    post admin_login_path, params: { secret: secret, login_token: token }, headers: headers
+  end
+
+  test "Origin: null + Sec-Fetch-Site: same-origin passes the origin check (wrong password => 401)" do
+    post_login(secret: "nope", headers: { "Origin" => "null", "Sec-Fetch-Site" => "same-origin" })
+    assert_response :unauthorized
+    assert_nil response.headers["Set-Cookie"]
+  end
+
+  test "Origin: null + Sec-Fetch-Site: same-origin + correct password logs in and sets the admin cookie" do
+    post_login(secret: AdminSecret.value, headers: { "Origin" => "null", "Sec-Fetch-Site" => "same-origin" })
+    assert_redirected_to admin_index_path
+    assert_match(/_voce_prefere_admin=/, Array(response.headers["Set-Cookie"]).join)
+  end
+
+  test "Sec-Fetch-Site same-origin works without any Origin/Referer, and whatever the scheme the proxy shows" do
+    post_login(secret: "nope", headers: { "Sec-Fetch-Site" => "same-origin" })
+    assert_response :unauthorized
+    post_login(secret: "nope", headers: { "Sec-Fetch-Site" => "same-origin", "X-Forwarded-Proto" => "https" })
+    assert_response :unauthorized
+  end
+
+  test "cross-site, same-site, none and unknown Sec-Fetch-Site values are rejected (even with a matching Origin and valid token)" do
+    %w[cross-site same-site none bogus].each do |value|
+      post_login(secret: AdminSecret.value, headers: { "Origin" => "https://www.example.com", "Sec-Fetch-Site" => value })
+      assert_response :unprocessable_entity, "Sec-Fetch-Site: #{value} must be rejected"
+      assert_nil response.headers["Set-Cookie"]
+    end
+  end
+
+  test "without Sec-Fetch-Site, a matching Origin host passes (scheme is not compared)" do
+    post_login(secret: "nope", headers: { "Origin" => "https://www.example.com" })
+    assert_response :unauthorized
+    post_login(secret: "nope", headers: { "Origin" => "http://www.example.com" })
+    assert_response :unauthorized
+  end
+
+  test "without Sec-Fetch-Site, Origin: null, a foreign Origin or garbage are rejected" do
+    [ "null", "https://evil.example", "https://www.example.com.evil.example", "not a url", "" ].each do |origin|
+      post_login(secret: AdminSecret.value, headers: { "Origin" => origin })
+      assert_response :unprocessable_entity, "Origin #{origin.inspect} must be rejected"
+    end
+  end
+
+  test "without Sec-Fetch-Site and with Origin: null, only a same-host Referer can save it" do
+    post_login(secret: "nope", headers: { "Origin" => "null", "Referer" => "https://www.example.com/admin/login" })
+    assert_response :unprocessable_entity # Origin present (null) wins: no fallback to Referer
+  end
+
+  test "a valid token is still required when Sec-Fetch-Site is same-origin" do
+    post admin_login_path, params: { secret: AdminSecret.value, login_token: "forged" }, headers: { "Sec-Fetch-Site" => "same-origin" }
+    assert_response :unprocessable_entity
+    post admin_login_path, params: { secret: AdminSecret.value }, headers: { "Sec-Fetch-Site" => "same-origin" }
+    assert_response :unprocessable_entity
+  end
+
   test "login without Origin/Referer is rejected" do
     post admin_login_path, params: { secret: AdminSecret.value, login_token: login_token }
     assert_response :unprocessable_entity

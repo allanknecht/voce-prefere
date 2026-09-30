@@ -72,6 +72,18 @@ class PublicCsrfTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "vote works with Origin: null when Sec-Fetch-Site is same-origin (no-referrer policy); same-site is refused" do
+    token = form_token
+    assert_difference -> { Vote.count }, 1 do
+      vote(public_post_headers(token: token, origin: "null", extra: { "Sec-Fetch-Site" => "same-origin" }))
+    end
+    assert_no_difference -> { Vote.count } do
+      vote(public_post_headers(token: token, extra: { "Sec-Fetch-Site" => "same-site" }))
+      vote(public_post_headers(token: token, origin: "null"))
+    end
+    assert_response :forbidden
+  end
+
   test "Referer is accepted when Origin is missing, and must match" do
     token = form_token
     headers = public_post_headers(token: token).except("Origin")
