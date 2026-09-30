@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_022750) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_120000) do
   create_table "options", force: :cascade do |t|
     t.string "text", limit: 120, null: false
     t.string "status", default: "pending", null: false
@@ -20,7 +20,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_022750) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["report_count"], name: "index_options_on_report_count"
-    t.index ["status"], name: "index_options_on_status"
+    t.index ["status", "id"], name: "index_options_on_status_and_id"
   end
 
   create_table "rate_limits", id: false, force: :cascade do |t|
@@ -40,7 +40,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_022750) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["option_id"], name: "index_votes_on_option_id"
-    t.index ["pair_hash"], name: "index_votes_on_pair_hash"
+    t.index ["pair_hash", "option_id"], name: "index_votes_on_pair_hash_and_option_id"
   end
 
   add_foreign_key "votes", "options"

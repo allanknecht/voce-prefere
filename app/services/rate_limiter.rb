@@ -21,31 +21,22 @@ class RateLimiter
     raise ArgumentError, "Unknown action: #{action}" unless @limit_config
   end
 
+  # One SELECT (expired rows are ignored, they are purged by #record).
   def check
-    cleanup_expired
     current_count < limit
   end
 
+  # Purges expired rows, then increments the counter atomically with a single upsert
+  # (INSERT ... ON CONFLICT DO UPDATE works on both PostgreSQL and SQLite), instead of
+  # find + create/increment!/update!.
   def record
     cleanup_expired
 
-    key = hashed_key
-    expires_at = Time.current + window
-
-    # Try to find existing record
-    rate_limit = RateLimit.find_by(hashed_key: key)
-
-    if rate_limit
-      rate_limit.increment!(:count)
-      rate_limit.update!(expires_at: expires_at) if rate_limit.expires_at < expires_at
-    else
-      RateLimit.create!(
-        hashed_key: key,
-        action: @action,
-        count: 1,
-        expires_at: expires_at
-      )
-    end
+    RateLimit.upsert(
+      { hashed_key: hashed_key, action: @action, count: 1, expires_at: Time.current + window },
+      unique_by: :hashed_key,
+      on_duplicate: Arel.sql("count = rate_limits.count + 1, expires_at = excluded.expires_at, updated_at = excluded.updated_at")
+    )
 
     true
   rescue => e
@@ -54,9 +45,7 @@ class RateLimiter
   end
 
   def current_count
-    cleanup_expired
-    rate_limit = RateLimit.find_by(hashed_key: hashed_key)
-    rate_limit&.count || 0
+    RateLimit.where(hashed_key: hashed_key).where("expires_at >= ?", Time.current).pick(:count) || 0
   end
 
   private

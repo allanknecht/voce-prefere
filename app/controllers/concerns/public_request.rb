@@ -13,6 +13,7 @@
 #   HTML to obtain (3). See PRIVACY.md.
 module PublicRequest
   extend ActiveSupport::Concern
+  include StatelessCsrf
 
   FORM_TOKEN_HEADER = "X-Form-Token"
   FORM_TOKEN_TTL = 24.hours
@@ -45,25 +46,6 @@ module PublicRequest
     return if same_origin_request? && valid_form_token?
 
     render json: { error: "Requisição inválida. Recarregue a página e tente novamente." }, status: :forbidden
-  end
-
-  def same_origin_request?
-    fetch_site = request.headers["Sec-Fetch-Site"]
-    return false if fetch_site.present? && !%w[same-origin none].include?(fetch_site)
-
-    origin = request.origin.presence
-    return origin == request.base_url if origin
-
-    referer = request.referer.presence
-    return false unless referer
-
-    uri = URI.parse(referer)
-    return false unless uri.scheme && uri.host
-
-    referer_origin = "#{uri.scheme}://#{uri.host}#{":#{uri.port}" if uri.port && uri.port != uri.default_port}"
-    referer_origin == request.base_url
-  rescue URI::InvalidURIError
-    false
   end
 
   def valid_form_token?

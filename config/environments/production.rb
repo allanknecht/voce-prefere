@@ -33,8 +33,10 @@ Rails.application.configure do
   # Don't log any deprecations.
   config.active_support.report_deprecations = false
 
-  # No cache store needed (rate limiting uses the database, no Redis, no disk).
-  config.cache_store = :null_store
+  # Small per-process in-memory cache (no Redis, no disk, no cookies involved) for public,
+  # visitor-independent aggregates only: approved options and the controversial ranking
+  # (see PairGenerator). Short TTLs keep it fresh; Render runs a single process.
+  config.cache_store = :memory_store, { size: 8 * 1024 * 1024 }
 
   # Enable locale fallbacks for I18n.
   config.i18n.fallbacks = true

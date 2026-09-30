@@ -28,7 +28,7 @@ class AdminController < ApplicationController
     if authenticated_at.positive? && (Time.current.to_i - authenticated_at) < SESSION_TTL.to_i
       session[:admin_authenticated_at] = Time.current.to_i # sliding expiry
     else
-      reset_session
+      reset_session if session[:admin_authenticated_at] # nothing to clear (and no cookie to send) otherwise
       redirect_to admin_login_path
     end
   end

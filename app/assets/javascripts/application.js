@@ -5,6 +5,85 @@
 
   var tokenMeta = document.querySelector('meta[name="form-token"]');
 
+  // ---- Loading state -----------------------------------------------------------
+  // The free hosting sleeps when idle, so the first request can take a while. The clicked
+  // button / link / submit gets aria-busy="true" (+ a small spinner, see application.css)
+  // and is protected against double clicks. After SLOW_MS a discreet notice explains
+  // the wait. Without JS nothing changes: links and forms simply work.
+  var SLOW_MS = 3000;
+  var busyElements = [];
+  var slowTimer = null;
+  var slowNotice = document.getElementById("slow-notice");
+
+  function refreshSlowTimer() {
+    if (busyElements.length > 0) {
+      if (!slowTimer) {
+        slowTimer = setTimeout(function () {
+          if (slowNotice) slowNotice.hidden = false;
+        }, SLOW_MS);
+      }
+    } else {
+      clearTimeout(slowTimer);
+      slowTimer = null;
+      if (slowNotice) slowNotice.hidden = true;
+    }
+  }
+
+  function setBusy(el, busy) {
+    if (!el) return;
+    var index = busyElements.indexOf(el);
+    if (busy && index === -1) {
+      busyElements.push(el);
+      el.setAttribute("aria-busy", "true");
+      el.classList.add("is-loading");
+      if (el.tagName === "INPUT") { // <input type=submit> cannot show a spinner: swap its label
+        el.dataset.label = el.value;
+        el.value = "Carregando…";
+      }
+    } else if (!busy && index !== -1) {
+      busyElements.splice(index, 1);
+      el.removeAttribute("aria-busy");
+      el.classList.remove("is-loading");
+      if (el.tagName === "INPUT" && el.dataset.label !== undefined) el.value = el.dataset.label;
+    }
+    refreshSlowTimer();
+  }
+
+  function isBusy(el) { return el.getAttribute("aria-busy") === "true"; }
+
+  // Coming back with the browser's back button (bfcache) must not show a stuck spinner.
+  window.addEventListener("pageshow", function (event) {
+    if (!event.persisted) return;
+    busyElements.slice().forEach(function (el) { setBusy(el, false); });
+    document.querySelectorAll("[data-locked]").forEach(function (el) { el.disabled = false; delete el.dataset.locked; });
+  });
+
+  // Plain navigation links: mark the clicked link, ignore further clicks until the page changes.
+  document.addEventListener("click", function (event) {
+    var link = event.target.closest && event.target.closest("a[href]");
+    if (!link) return;
+    if (isBusy(link)) { event.preventDefault(); return; }
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if ((link.target && link.target !== "_self") || link.hasAttribute("download")) return;
+    if (link.origin !== window.location.origin || link.getAttribute("href").charAt(0) === "#") return;
+    setBusy(link, true);
+  });
+
+  // Regular (non-JS-handled) forms, e.g. the admin login / approve / reject buttons.
+  document.addEventListener("submit", function (event) {
+    var form = event.target;
+    if (event.defaultPrevented || form.id === "submit-form") return;
+    var button = event.submitter || form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
+    if (form.dataset.submitting) { event.preventDefault(); return; }
+    form.dataset.submitting = "true";
+    setBusy(button, true);
+  });
+
+  window.addEventListener("pageshow", function (event) {
+    if (!event.persisted) return;
+    document.querySelectorAll("form[data-submitting]").forEach(function (form) { delete form.dataset.submitting; });
+  });
+
   function postJSON(url, payload) {
     var headers = { "Content-Type": "application/json", "Accept": "application/json" };
     if (tokenMeta) headers["X-Form-Token"] = tokenMeta.content;
@@ -58,9 +137,17 @@
 
     if (localStorage.getItem(votedKey)) showResults();
 
+    function lockVoting(locked) {
+      buttons.forEach(function (b) { b.disabled = locked; });
+    }
+
     buttons.forEach(function (button) {
       button.addEventListener("click", function () {
         if (localStorage.getItem(votedKey)) { showResults(); return; }
+        if (isBusy(button)) return; // double click while the vote is in flight
+
+        lockVoting(true);
+        setBusy(button, true);
 
         postJSON("/votes", { option_id: button.dataset.optionId, pair_hash: pairHash })
           .then(function (data) {
@@ -72,7 +159,8 @@
               alert(data.error || "Erro ao votar");
             }
           })
-          .catch(function () { alert("Erro ao votar. Tente novamente."); });
+          .catch(function () { alert("Erro ao votar. Tente novamente."); })
+          .then(function () { setBusy(button, false); lockVoting(false); });
       });
     });
 
@@ -125,6 +213,11 @@
       var text = input.value.trim();
       if (!text || text.length > 120) { say("Texto inválido (máx 120 caracteres)", false); return; }
 
+      var submitButton = form.querySelector('button[type="submit"]');
+      if (isBusy(submitButton)) return;
+      setBusy(submitButton, true);
+      submitButton.disabled = true;
+
       postJSON("/options", { text: text })
         .then(function (data) {
           if (data.success) {
@@ -136,7 +229,8 @@
             say(data.error, false);
           }
         })
-        .catch(function () { say("Erro ao enviar. Tente novamente.", false); });
+        .catch(function () { say("Erro ao enviar. Tente novamente.", false); })
+        .then(function () { setBusy(submitButton, false); submitButton.disabled = false; });
     });
   }
 

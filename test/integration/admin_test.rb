@@ -6,10 +6,13 @@ class AdminTest < ActionDispatch::IntegrationTest
     @option = Option.create!(text: "Opção pendente", status: "pending")
   end
 
-  def login!(secret: AdminSecret.value)
+  def login_token
     get admin_login_path
-    token = css_select("input[name=authenticity_token]").first["value"]
-    post admin_login_path, params: { secret: secret, authenticity_token: token }
+    css_select("input[name=login_token]").first["value"]
+  end
+
+  def login!(secret: AdminSecret.value)
+    post admin_login_path, params: { secret: secret, login_token: login_token }, headers: { "Origin" => "https://www.example.com" }
   end
 
   # Rails issues per-form tokens: take the one of the form that posts to `action`.
@@ -44,11 +47,77 @@ class AdminTest < ActionDispatch::IntegrationTest
     assert_match "Painel Admin", response.body
   end
 
-  test "login without CSRF token is rejected" do
+  test "GET /admin/login sets no cookie and no session-based CSRF token" do
+    get admin_login_path
+    assert_response :success
+    assert_nil response.headers["Set-Cookie"]
+    assert_select "input[name=authenticity_token]", 0
+    assert_select "input[name=login_token][value]", 1
+    assert_equal "no-store", response.headers["Cache-Control"]
+  end
+
+  test "failed logins (wrong password, bad token, throttled) set no cookie either" do
+    login!(secret: "nope")
+    assert_response :unauthorized
+    assert_nil response.headers["Set-Cookie"]
+
     post admin_login_path, params: { secret: AdminSecret.value }
+    assert_response :unprocessable_entity
+    assert_nil response.headers["Set-Cookie"]
+  end
+
+  test "protected admin pages redirect anonymous visitors without a cookie" do
+    get admin_index_path
+    assert_redirected_to admin_login_path
+    assert_nil response.headers["Set-Cookie"]
+  end
+
+  test "login without the form token is rejected" do
+    post admin_login_path, params: { secret: AdminSecret.value }, headers: { "Origin" => "https://www.example.com" }
     assert_response :unprocessable_entity
     get admin_index_path
     assert_redirected_to admin_login_path
+  end
+
+  test "login with a forged token is rejected" do
+    post admin_login_path, params: { secret: AdminSecret.value, login_token: "forged" }, headers: { "Origin" => "https://www.example.com" }
+    assert_response :unprocessable_entity
+  end
+
+  test "a public-form token cannot be replayed on the admin login (purpose-bound)" do
+    get root_path
+    public_token = css_select('meta[name="form-token"]').first["content"]
+    post admin_login_path, params: { secret: AdminSecret.value, login_token: public_token }, headers: { "Origin" => "https://www.example.com" }
+    assert_response :unprocessable_entity
+  end
+
+  test "login from another origin is rejected even with a valid token" do
+    token = login_token
+    post admin_login_path, params: { secret: AdminSecret.value, login_token: token }, headers: { "Origin" => "https://evil.example" }
+    assert_response :unprocessable_entity
+    post admin_login_path, params: { secret: AdminSecret.value, login_token: token },
+         headers: { "Origin" => "https://www.example.com", "Sec-Fetch-Site" => "cross-site" }
+    assert_response :unprocessable_entity
+    get admin_index_path
+    assert_redirected_to admin_login_path
+  end
+
+  test "login without Origin/Referer is rejected" do
+    post admin_login_path, params: { secret: AdminSecret.value, login_token: login_token }
+    assert_response :unprocessable_entity
+  end
+
+  test "login accepts a same-origin Referer when Origin is absent" do
+    post admin_login_path, params: { secret: AdminSecret.value, login_token: login_token }, headers: { "Referer" => "https://www.example.com/admin/login" }
+    assert_redirected_to admin_index_path
+  end
+
+  test "an expired login token is rejected" do
+    token = login_token
+    travel 2.hours do
+      post admin_login_path, params: { secret: AdminSecret.value, login_token: token }, headers: { "Origin" => "https://www.example.com" }
+      assert_response :unprocessable_entity
+    end
   end
 
   test "login is rate limited" do
@@ -60,9 +129,7 @@ class AdminTest < ActionDispatch::IntegrationTest
   # ---- cookie flags --------------------------------------------------------------
 
   test "admin session cookie is Secure, HttpOnly, SameSite=Strict and scoped to /admin" do
-    get admin_login_path
-    token = css_select("input[name=authenticity_token]").first["value"]
-    post admin_login_path, params: { secret: AdminSecret.value, authenticity_token: token }
+    post admin_login_path, params: { secret: AdminSecret.value, login_token: login_token }, headers: { "Origin" => "https://www.example.com" }
 
     cookie = Array(response.headers["Set-Cookie"]).join("\n")
     assert_match(/_voce_prefere_admin=/, cookie)
@@ -73,17 +140,11 @@ class AdminTest < ActionDispatch::IntegrationTest
     assert_match(/;\s*expires=/i, cookie)
   end
 
-  test "the login page cookie (CSRF session) has the same flags" do
-    get admin_login_path
-    cookie = Array(response.headers["Set-Cookie"]).join("\n")
-    assert_match(/path=\/admin/i, cookie)
-    assert_match(/secure/i, cookie)
-    assert_match(/httponly/i, cookie)
-    assert_match(/samesite=strict/i, cookie)
-  end
-
   test "public pages never set a cookie" do
-    [ root_path, pages_about_path, pairs_day_path, pairs_controversial_path ].each do |path|
+    5.times { |i| Option.create!(text: "Opção pública #{i}", status: "approved") }
+    pair = PairGenerator.random_pair
+    [ root_path, pages_about_path, pairs_day_path, pairs_controversial_path, admin_login_path, "/up",
+      pair_path(PairGenerator.hash_for(pair[0], pair[1])), pair_path("nonexistent"), "/pairs/day/../nope" ].each do |path|
       get path
       assert_nil response.headers["Set-Cookie"], "#{path} set a cookie"
     end
