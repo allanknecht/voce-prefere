@@ -14,7 +14,7 @@
         class: "flex-1 border-2 border-gray-300 rounded-lg px-3 py-2 focus:border-purple-500 focus:outline-none" %>
     <%= label_tag :status, "Filtrar por status", class: "sr-only" %>
     <%= select_tag :status,
-        options_for_select([ [ "Todas", "" ], [ "Aprovadas", "aprovadas" ], [ "Pendentes", "pendentes" ], [ "Rejeitadas", "rejeitadas" ] ], @status.to_s),
+        options_for_select([ [ "Todas", "" ], [ "No ar", "aprovadas" ], [ "Fora do ar", "fora-do-ar" ] ], @status.to_s),
         class: "border-2 border-gray-300 rounded-lg px-3 py-2 bg-white" %>
     <%= label_tag :category, "Filtrar por categoria", class: "sr-only" %>
     <%= select_tag :category,
@@ -33,10 +33,11 @@
         <li class="border-2 border-gray-300 rounded-lg p-3">
           <p class="font-bold break-words"><%= option.text %></p>
           <p class="text-xs text-gray-600 mt-1">
-            <% badge = { "approved" => [ "Aprovada", "bg-green-100 text-green-800" ],
-                         "pending" => [ "Pendente", "bg-yellow-100 text-yellow-800" ],
-                         "rejected" => [ "Rejeitada", "bg-red-100 text-red-800" ] }[option.status] || [ option.status, "bg-gray-100" ] %>
-            <span class="inline-block rounded px-2 py-0.5 font-bold <%= badge[1] %>"><%= badge[0] %></span>
+            <% if option.status == "approved" %>
+              <span class="inline-block rounded px-2 py-0.5 font-bold bg-green-100 text-green-800">No ar</span>
+            <% else %>
+              <span class="inline-block rounded px-2 py-0.5 font-bold bg-red-100 text-red-800">Fora do ar</span>
+            <% end %>
             <span class="inline-block rounded px-2 py-0.5 font-bold <%= option.category == "bad" ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800" %>"><%= Option::CATEGORY_LABELS[option.category] %></span>
             <% if option.needs_review %><span class="inline-block rounded px-2 py-0.5 font-bold bg-yellow-100 text-yellow-800">Em revisão</span><% end %>
             • ID <%= option.id %> • <%= @vote_counts[option.id].to_i %> votos • <%= option.report_count %> denúncias

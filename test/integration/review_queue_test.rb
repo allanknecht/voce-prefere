@@ -61,16 +61,13 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "there is no automatic moderation of new options: even text the blocklist flags goes live" do
-    ENV["MODERATION_BLOCKLIST"] = "palavraoteste"
-    ContentModerator.reset_lists!
-    submit(text: "Dizer palavraoteste", category: "bad")
-    option = Option.find_by!(text: "Dizer palavraoteste")
-    assert_equal "approved", option.status
-    assert option.needs_review
-  ensure
-    ENV.delete("MODERATION_BLOCKLIST")
-    ContentModerator.reset_lists!
+  test "there is no filter of any kind on new options: anything within the length limit goes live" do
+    [ "Votar em João Silva", "Dizer um palavrão qualquer", "Namorar a Maria da Silva" ].each do |text|
+      submit(text: text, category: "bad")
+      assert_response :success, text
+      option = Option.find_by!(text: text)
+      assert_equal [ "approved", true ], [ option.status, option.needs_review ]
+    end
   end
 
   test "submission keeps the length/blank validation and the rate limit" do
@@ -107,7 +104,7 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
 
   # ---- queue page --------------------------------------------------------------------------
 
-  test "review page requires admin, is no-store, lists the queue oldest first and paginates 25" do
+  test "review page requires admin, is no-store, lists the queue (reported first, then oldest) and paginates 25" do
     get admin_review_path
     assert_redirected_to admin_login_path
 
@@ -123,7 +120,7 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     refute_includes texts, "Fora da fila"
     assert_select "a[rel=next][href*='page=2']"
     assert_select "li form[action^='/admin/approve/']", 25
-    assert_select "li form[action^='/admin/reject/']", 25
+    assert_select "li a[href*='/admin/options/'][href*='/delete'][href*='from=review']", 25
     get admin_review_path(page: 2)
     assert_equal 5, css_select("ul li").size
   end
@@ -135,8 +132,9 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?].bg-gray-100", admin_review_path
 
     2.times { |i| make("Nova #{i}", needs_review: true) }
+    make("Fora do ar antiga", status: "rejected", needs_review: true)
     get admin_index_path
-    assert_select "a[href=?].bg-yellow-300", admin_review_path, text: /Fila de revisão: 2 opções/
+    assert_select "a[href=?].bg-yellow-300", admin_review_path, text: /Fila de revisão: 3 opções/
   end
 
   test "Aprovar removes it from the queue, keeps it on air and resets the report count" do
@@ -149,69 +147,162 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     assert_equal [ "approved", false, 0 ], [ option.status, option.needs_review, option.report_count ]
   end
 
-  test "Reprovar deletes the option for good with its votes and pair votes, and logs it as reprovada" do
-    a = make("Reprovar esta", needs_review: true, category: "bad")
+  test "Excluir (confirmation page, then delete) removes the option for good with its votes and pair votes, and logs it" do
+    a = make("Excluir esta", needs_review: true, category: "bad", report_count: 2)
     b = make("Par dela", category: "bad")
     c = make("Terceira", category: "bad")
     3.times { Vote.create!(option: a, pair_hash: PairGenerator.hash_for(a, b)) }
     2.times { Vote.create!(option: b, pair_hash: PairGenerator.hash_for(a, b)) }
     4.times { Vote.create!(option: b, pair_hash: PairGenerator.hash_for(b, c)) }
     login!
-    token = csrf_for(admin_review_path, action: admin_reject_path(a))
+    get admin_review_path
+    assert_select "a[href=?]", confirm_delete_admin_option_path(a, from: "review"), text: /Excluir/
+    get confirm_delete_admin_option_path(a, from: "review")
+    assert_match(/5 votos/, response.body)
+    assert_match(/2 denúncias/, response.body)
+    assert_select "a[href=?]", admin_review_path, text: "Cancelar"
+    token = css_select("form[action^='/admin/options/#{a.id}'] input[name=authenticity_token]").first["value"]
     assert_difference -> { DeletedOption.count }, 1 do
-      post admin_reject_path(a), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
+      delete admin_option_path(a, from: "review"), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     end
+    assert_redirected_to admin_review_path
     refute Option.exists?(a.id)
     assert_equal 0, Vote.where(pair_hash: PairGenerator.hash_for(a, b)).count
     assert_equal 4, Vote.count
     entry = DeletedOption.last
-    assert_equal [ "Reprovar esta", "bad", "reprovada" ], [ entry.text, entry.category, entry.reason ]
+    assert_equal [ "Excluir esta", "bad", "reprovada" ], [ entry.text, entry.category, entry.reason ]
+    assert_equal "Excluída na fila", entry.reason_label
     refute_includes PairGenerator.new.send(:approved_options).map(&:id), a.id
   end
 
-  test "approve/reject need the admin session and the CSRF token" do
+  test "there is no reject action any more, and the queue says Excluir, never Reprovar" do
+    option = make("Texto qualquer da fila", needs_review: true)
+    login!
+    get admin_review_path
+    assert_no_match(/Reprov/i, response.body)
+    assert_match(/Excluir/, response.body)
+    assert_raises(NoMethodError) { admin_reject_path(option) }
+  end
+
+  test "approve/delete need the admin session and the CSRF token" do
     option = make("Protegida", needs_review: true)
     post admin_approve_path(option), headers: BROWSER_ADMIN_HEADERS
     assert_includes [ 302, 422 ], response.status
-    post admin_reject_path(option), headers: BROWSER_ADMIN_HEADERS
+    delete admin_option_path(option, from: "review"), headers: BROWSER_ADMIN_HEADERS
     assert_includes [ 302, 422 ], response.status
     assert Option.exists?(option.id)
     assert option.reload.needs_review
   end
 
-  # ---- reports: threshold 3 -> off air + back in the queue ----------------------------------------
+  # ---- reports: nothing goes off air, reported options are queued and highlighted ---------------------------
 
-  test "the third report takes an option off air and puts it in the queue; Aprovar puts it back" do
+  test "reports never take an option off the air: any number of them only counts and queues it" do
     option = make("Denunciável")
-    make("Outra")
-    2.times { option.report! }
-    assert_equal [ "approved", false ], [ option.reload.status, option.needs_review ]
-    option.report!
-    option.reload
-    assert_equal [ "pending", true, 3 ], [ option.status, option.needs_review, option.report_count ]
-    refute_includes Option.approved, option
-    assert_includes Option.in_review, option
-    refute_includes PairGenerator.new.send(:approved_options).map(&:id), option.id
-
-    option.approve!
-    assert_equal [ "approved", false, 0 ], [ option.status, option.needs_review, option.report_count ]
+    other = make("Outra")
+    assert_not option.needs_review
+    1.upto(6) do |n|
+      option.report!
+      option.reload
+      assert_equal [ "approved", true, n ], [ option.status, option.needs_review, option.report_count ]
+    end
+    assert_includes Option.approved, option
     assert_includes PairGenerator.new.send(:approved_options).map(&:id), option.id
+    assert_includes Option.in_review, option
+    refute_includes Option.in_review, other
   end
 
-  test "an off-air reported option is shown in the queue as off air" do
-    option = make("Fora por denúncias")
-    3.times { option.report! }
+  test "the public report endpoint keeps the option live, queues it and keeps its rate limit" do
+    option = make("Denunciada pelo público")
+    make("Par")
+    3.times do
+      post report_option_path(option), headers: public_post_headers
+      assert_response :success
+    end
+    option.reload
+    assert_equal [ "approved", true, 3 ], [ option.status, option.needs_review, option.report_count ]
+    get root_path
+    assert_response :success
+    assert_nil response.headers["Set-Cookie"]
+    # rate limit: 10 reports per hour per (hashed) visitor
+    7.times { post report_option_path(option), headers: public_post_headers }
+    post report_option_path(option), headers: public_post_headers
+    assert_response :too_many_requests
+    assert_equal 10, option.reload.report_count
+  end
+
+  test "a report of an option that is not on the air is refused (the public cannot see it)" do
+    hidden = make("Escondida", status: "rejected")
+    post report_option_path(hidden), headers: public_post_headers
+    assert_response :not_found
+    assert_equal 0, hidden.reload.report_count
+  end
+
+  test "the queue lists reported options first (most reports first) with a highlighted report badge" do
+    old = make("Antiga sem denúncia", needs_review: true, created_at: 3.days.ago)
+    few = make("Com uma denúncia", needs_review: true, report_count: 1, created_at: 1.day.ago)
+    many = make("Com cinco denúncias", needs_review: true, report_count: 5)
     login!
     get admin_review_path
-    assert_match(/Fora do ar \(denúncias\)/, response.body)
-    assert_match(/Fora por denúncias/, response.body)
+    assert_equal [ many.text, few.text, old.text ], css_select("ul li p.font-bold").map { |n| n.text.strip }
+    assert_match(/🚩 5 denúncias/, response.body)
+    assert_match(/🚩 1 denúncia\b/, response.body)
+    assert_select "li.border-red-500", 2
+    assert_select "li.border-red-500 span.bg-red-600", 2
   end
 
-  test "a new option that gets reported is also pulled at the threshold" do
-    option = make("Nova e denunciada", needs_review: true)
-    3.times { option.report! }
-    assert_equal "pending", option.reload.status
-    assert option.needs_review
+  test "Aprovar resets the report count, so a later report queues it again" do
+    option = make("Denunciada", needs_review: true, report_count: 4)
+    login!
+    token = csrf_for(admin_review_path, action: admin_approve_path(option))
+    post admin_approve_path(option), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
+    option.reload
+    assert_equal [ "approved", false, 0 ], [ option.status, option.needs_review, option.report_count ]
+    option.report!
+    assert_equal [ 1, true ], [ option.reload.report_count, option.needs_review ]
+  end
+
+  # ---- hidden / rejected options: queue, Aprovar = on the air, Excluir = delete ---------------------------
+
+  test "off-air options are listed in the queue with a 'Fora do ar' badge; Aprovar puts them on the air, Excluir deletes them" do
+    rejected = make("Rejeitada antiga", status: "rejected", needs_review: true)
+    pending = make("Pendente antiga", status: "pending", needs_review: true, report_count: 4)
+    live = make("No ar", needs_review: true)
+    login!
+    get admin_review_path
+    assert_equal 3, css_select("ul li").size
+    assert_equal 2, css_select("ul li span").select { |n| n.text.strip == "Fora do ar" }.size
+    assert_equal 1, css_select("ul li span").select { |n| n.text.strip == "No ar" }.size
+    refute_includes Option.approved, rejected
+    refute_includes PairGenerator.new.send(:approved_options).map(&:id), pending.id
+
+    token = csrf_for(admin_review_path, action: admin_approve_path(rejected))
+    post admin_approve_path(rejected), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
+    rejected.reload
+    assert_equal [ "approved", false, 0 ], [ rejected.status, rejected.needs_review, rejected.report_count ]
+    assert_includes PairGenerator.new.send(:approved_options).map(&:id), rejected.id
+
+    token = csrf_for(confirm_delete_admin_option_path(pending, from: "review"), action: admin_option_path(pending))
+    delete admin_option_path(pending, from: "review"), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
+    refute Option.exists?(pending.id)
+    assert Option.exists?(live.id)
+  end
+
+  test "public pages never show a non-approved option" do
+    6.times { |i| make("Visível #{i}") }
+    hidden = [ make("Escondida rejeitada", status: "rejected", needs_review: true), make("Escondida pendente", status: "pending", needs_review: true) ]
+    Vote.create!(option: hidden.first, pair_hash: PairGenerator.hash_for(*hidden))
+    40.times do
+      get root_path
+      assert_no_match(/Escondida/, response.body)
+    end
+    [ pairs_day_path, pairs_controversial_path, pages_about_path ].each do |path|
+      get path
+      assert_no_match(/Escondida/, response.body, path)
+    end
+    get pair_path(PairGenerator.hash_for(*hidden))
+    assert_redirected_to root_path
+    post votes_path, params: { option_id: hidden.first.id, pair_hash: PairGenerator.hash_for(*hidden) }.to_json, headers: public_post_headers
+    assert_response :not_found
   end
 
   # ---- pairs only within a category ----------------------------------------------------------------
@@ -298,15 +389,6 @@ class ReviewQueueTest < ActionDispatch::IntegrationTest
     token = csrf_for(edit_admin_option_path(option), action: admin_option_path(option))
     patch admin_option_path(option), params: { option: { text: "Fica boa", category: "hacked" }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_equal "good", option.reload.category
-  end
-
-  test "a moderation hit on an admin edit still warns and needs forçar" do
-    option = make("Texto normal")
-    login!
-    token = csrf_for(edit_admin_option_path(option), action: admin_option_path(option))
-    patch admin_option_path(option), params: { option: { text: "Votar em João Silva" }, authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
-    assert_response :unprocessable_entity
-    assert_match(/filtro de moderação/, response.body)
   end
 
   # ---- public pages keep working and stay cookie-free ---------------------------------------------------

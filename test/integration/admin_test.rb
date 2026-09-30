@@ -18,7 +18,7 @@ class AdminTest < ActionDispatch::IntegrationTest
   # Rails issues per-form tokens: take the one of the form that posts to `action`.
   def csrf_token_from(path, action:)
     get path
-    css_select("form[action='#{action}'] input[name=authenticity_token]").first["value"]
+    css_select("form[action^='#{action}'] input[name=authenticity_token]").first["value"]
   end
 
   # ---- login -------------------------------------------------------------------
@@ -209,7 +209,7 @@ class AdminTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # ---- CSRF on approve / reject -----------------------------------------------------
+  # ---- CSRF on approve / delete from the queue -----------------------------------------------------
 
   test "approve without CSRF token is rejected and changes nothing" do
     login!
@@ -218,14 +218,14 @@ class AdminTest < ActionDispatch::IntegrationTest
     assert @option.reload.needs_review
   end
 
-  test "reject without CSRF token is rejected and changes nothing" do
+  test "delete from the queue without CSRF token is rejected and changes nothing" do
     login!
-    post admin_reject_path(@option), headers: BROWSER_ADMIN_HEADERS
+    delete admin_option_path(@option, from: "review"), headers: BROWSER_ADMIN_HEADERS
     assert_response :unprocessable_entity
     assert Option.exists?(@option.id)
   end
 
-  test "approve and reject work with the CSRF token rendered in the admin page" do
+  test "approve and delete (Excluir) work with the CSRF token rendered in the admin page" do
     login!
     token = csrf_token_from(admin_review_path, action: admin_approve_path(@option))
     post admin_approve_path(@option), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
@@ -234,8 +234,8 @@ class AdminTest < ActionDispatch::IntegrationTest
     refute @option.needs_review
 
     other = Option.create!(text: "Outra em revisão", status: "approved", needs_review: true)
-    token = csrf_token_from(admin_review_path, action: admin_reject_path(other))
-    post admin_reject_path(other), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
+    token = csrf_token_from(confirm_delete_admin_option_path(other, from: "review"), action: admin_option_path(other))
+    delete admin_option_path(other, from: "review"), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_redirected_to admin_review_path
     refute Option.exists?(other.id)
   end

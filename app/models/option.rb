@@ -2,21 +2,25 @@ class Option < ApplicationRecord
   has_many :votes, dependent: :destroy
 
   validates :text, presence: true, length: { maximum: 120 }
+  # `pending` / `rejected` are legacy values of the old moderation; nothing creates them any more
+  # (they are kept so existing rows stay valid until the admin approves or deletes them).
   validates :status, presence: true, inclusion: { in: %w[pending approved rejected] }
   validates :category, presence: true, inclusion: { in: OptionClassifier::CATEGORIES }
   validates :report_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   scope :approved, -> { where(status: "approved") }
-  scope :pending, -> { where(status: "pending") }
   scope :in_review, -> { where(needs_review: true) }
   CATEGORY_FILTERS = { "boas" => "good", "ruins" => "bad" }.freeze
   CATEGORY_LABELS = { "good" => "Boa", "bad" => "Ruim" }.freeze
-  # Off air after this many reports: back into the review queue.
-  REPORT_THRESHOLD = 3
 
-  STATUS_FILTERS = { "aprovadas" => "approved", "pendentes" => "pending", "rejeitadas" => "rejected" }.freeze
+  # Nothing is ever taken off the air automatically: public pages show `approved` options only,
+  # and the only way an option stops being approved is an old (pre-#6) state that the admin
+  # resolves in the review queue (Aprovar = back on air, Excluir = delete).
+  STATUS_FILTERS = { "aprovadas" => "approved", "fora-do-ar" => :off_air }.freeze
+  STATUS_LABELS = { "approved" => "No ar" }.freeze
 
-  scope :reported, -> { where("report_count >= ?", REPORT_THRESHOLD) }
+  # Review queue order: reported options first (most reports first), then oldest first.
+  scope :review_order, -> { order(report_count: :desc, created_at: :asc, id: :asc) }
 
   before_validation :set_defaults, on: :create
   before_validation :guess_category, on: :create
@@ -24,13 +28,13 @@ class Option < ApplicationRecord
   # Admin edits (save(context: :admin_edit)) must not duplicate another option's text.
   validate :text_not_taken_by_another_option, on: :admin_edit
 
-  # Every deletion path (admin delete, Reprovar, `destroy`, ...) keeps the text in
+  # Every deletion path (manual delete, Excluir in the queue, `destroy`, ...) keeps the text in
   # `deleted_options`, inside the same transaction as the delete. `deletion_reason` defaults to "manual".
   attr_writer :deletion_reason
   before_destroy { DeletedOption.record!(self, reason: @deletion_reason || "manual") }
 
-  # Any change (approve, reject, report, new submission, ...) drops the cached lists built
-  # from approved options (see PairGenerator), so moderation shows up immediately.
+  # Any change (approve, edit, delete, new submission, ...) drops the cached lists built
+  # from approved options (see PairGenerator), so admin decisions show up immediately.
   after_commit { PairGenerator.expire_caches! }
 
   # Case- and accent-insensitive key ("Ação" == "acao" == "AÇÃO"): used for the alphabetical
@@ -47,7 +51,8 @@ class Option < ApplicationRecord
   #           "%" and "_" are ordinary characters (no LIKE wildcards, nothing is interpolated in SQL).
   # The app keeps a small table of short texts, so one `SELECT id, text` per page view is cheap.
   def self.admin_ids(status: nil, query: nil, category: nil)
-    scope = STATUS_FILTERS.key?(status) ? where(status: STATUS_FILTERS[status]) : all
+    scope = all
+    scope = STATUS_FILTERS[status] == :off_air ? where.not(status: "approved") : where(status: "approved") if STATUS_FILTERS.key?(status)
     scope = scope.where(category: CATEGORY_FILTERS[category]) if CATEGORY_FILTERS.key?(category)
     needle = sort_key(query)
     rows = scope.pluck(:id, :text).map { |id, text| [ id, text, sort_key(text) ] }
@@ -64,7 +69,7 @@ class Option < ApplicationRecord
   end
 
   # Deletes the option and everything hanging off it, atomically, and logs its text in
-  # `deleted_options` (reason: "manual" or "reprovada"). (Reports are just the report_count
+  # `deleted_options` (reason: "manual", or "reprovada" when deleted from the queue). (Reports are just the report_count
   # column of the option, so they go with the row.)
   def destroy_with_votes!(reason: "manual")
     self.deletion_reason = reason
@@ -74,24 +79,25 @@ class Option < ApplicationRecord
     end
   end
 
-  # "Aprovar" in the review queue: stays on air, leaves the queue, reports are forgotten.
+  # "Aprovar" in the review queue: on the air (also for old off-air options), out of the queue,
+  # report count back to 0 (so a later report queues it again).
   def approve!
     update!(status: "approved", needs_review: false, report_count: 0)
   end
 
-  # "Reprovar": the option is deleted for good, with its votes (also votes of pairs that contain
-  # it), and its text is logged in `deleted_options` with reason "reprovada".
-  def reject!
+  # "Excluir" in the queue: deleted for good with its votes (also votes of pairs that contain it),
+  # text logged in `deleted_options` (reason "reprovada" is the stored value, shown as
+  # "excluída na fila").
+  def destroy_from_queue!
     destroy_with_votes!(reason: "reprovada")
   end
 
-  # A public report. From REPORT_THRESHOLD reports on, the option goes off air and back into the
-  # review queue until the admin decides (Aprovar resets the count).
+  # A public report. NOTHING is taken off the air: the option stays live, the counter goes up
+  # and the option (re)enters the review queue, where reported options are shown first.
+  # One atomic UPDATE (no lost increments under concurrent reports).
   def report!
-    increment!(:report_count)
-    return unless report_count >= REPORT_THRESHOLD && status == "approved"
-
-    update!(status: "pending", needs_review: true)
+    self.class.where(id: id).update_all([ "report_count = report_count + 1, needs_review = ?", true ])
+    reload
   end
 
   private

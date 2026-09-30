@@ -12,7 +12,7 @@
           <p class="font-bold break-words"><%= entry.text %></p>
           <p class="text-xs text-gray-600 mt-1">
             <span class="inline-block rounded px-2 py-0.5 font-bold <%= entry.reprovada? ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800" %>">
-              <%= entry.reprovada? ? "Reprovada" : "Excluída" %>
+              <%= entry.reason_label %>
             </span>
             • Categoria: <%= entry.category.presence || "—" %>
             • <%= entry.deleted_at.strftime("%d/%m/%Y %H:%M") %>

@@ -32,16 +32,18 @@ class AdminDeletedTest < ActionDispatch::IntegrationTest
 
   test "lists most recent first, paginated 25, no-store, read-only (no forms/buttons), shows text, category, reason, date" do
     30.times { |i| DeletedOption.create!(text: "Excluída %02d" % i, reason: "manual", deleted_at: i.minutes.ago) }
-    DeletedOption.create!(text: "Reprovada agora", category: "comida", reason: "reprovada", deleted_at: Time.current + 1.minute)
+    DeletedOption.create!(text: "Excluída na fila agora", category: "comida", reason: "reprovada", deleted_at: Time.current + 1.minute)
     login!
     get admin_deleted_path
     assert_response :success
     assert_equal "no-store", response.headers["Cache-Control"]
     texts = css_select("ul li p.font-bold").map { |n| n.text.strip }
     assert_equal 25, texts.size
-    assert_equal "Reprovada agora", texts.first
+    assert_equal "Excluída na fila agora", texts.first
     assert_equal "Excluída 23", texts.last
-    assert_match(/Reprovada/, response.body)
+    assert_match(/Excluída na fila/, response.body)
+    assert_match(/Excluída manualmente/, response.body)
+    refute_match(/Reprovad/, response.body)
     assert_match(/Categoria: comida/, response.body)
     assert_match(%r{\d{2}/\d{2}/\d{4} \d{2}:\d{2}}, response.body)
     assert_select "ul form, ul button, ul input", 0
@@ -80,15 +82,15 @@ class AdminDeletedTest < ActionDispatch::IntegrationTest
     assert_match(/Vai pro log/, response.body)
   end
 
-  test "Reprovar in the review queue records the text (reason reprovada)" do
-    option = Option.create!(text: "Reprovada na fila", status: "approved", needs_review: true)
+  test "Excluir in the review queue records the text (stored reason reprovada, shown as excluída na fila)" do
+    option = Option.create!(text: "Excluída pela fila", status: "approved", needs_review: true)
     login!
-    token = csrf_for(admin_review_path, action: admin_reject_path(option))
+    token = csrf_for(confirm_delete_admin_option_path(option, from: "review"), action: admin_option_path(option))
     assert_difference -> { DeletedOption.count }, 1 do
-      post admin_reject_path(option), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
+      delete admin_option_path(option, from: "review"), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     end
-    refute Option.exists?(option.id), "Reprovar deletes the option for good"
-    assert_equal [ "Reprovada na fila", "reprovada" ], DeletedOption.last.then { |e| [ e.text, e.reason ] }
+    refute Option.exists?(option.id), "Excluir deletes the option for good"
+    assert_equal [ "Excluída pela fila", "reprovada" ], DeletedOption.last.then { |e| [ e.text, e.reason ] }
   end
 
   test "any deletion path (destroy) logs the text" do
@@ -109,7 +111,7 @@ class AdminDeletedTest < ActionDispatch::IntegrationTest
     DeletedOption.define_singleton_method(:record!) { |*, **| raise ActiveRecord::StatementInvalid, "boom" }
     begin
       assert_raises(ActiveRecord::StatementInvalid) { a.destroy_with_votes! }
-      assert_raises(ActiveRecord::StatementInvalid) { a.reject! }
+      assert_raises(ActiveRecord::StatementInvalid) { a.destroy_from_queue! }
     ensure
       DeletedOption.singleton_class.alias_method :record!, :__orig_record!
       DeletedOption.singleton_class.remove_method :__orig_record!

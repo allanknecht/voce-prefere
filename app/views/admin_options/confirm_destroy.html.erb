@@ -11,8 +11,8 @@
   </p>
 
   <div class="flex gap-3">
-    <%= button_to "Sim, excluir", admin_option_path(@option, list_params), method: :delete,
+    <%= button_to "Sim, excluir", admin_option_path(@option, @from_review ? { from: "review" } : list_params), method: :delete,
         form: { class: "flex-1" }, class: "w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg" %>
-    <%= link_to "Cancelar", admin_options_path(list_params), class: "flex-1 text-center bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 rounded-lg" %>
+    <%= link_to "Cancelar", (@from_review ? admin_review_path : admin_options_path(list_params)), class: "flex-1 text-center bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 rounded-lg" %>
   </div>
 </div>

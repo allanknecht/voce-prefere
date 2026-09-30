@@ -47,11 +47,11 @@ class OptionTest < ActiveSupport::TestCase
 
   test "admin_ids orders alphabetically and filters literally (LIKE wildcards are plain characters)" do
     b = Option.create!(text: "b 50%", status: "approved")
-    a = Option.create!(text: "Á 50x", status: "pending")
+    a = Option.create!(text: "Á 50x", status: "rejected")
     assert_equal [ a.id, b.id ], Option.admin_ids
     assert_equal [ b.id ], Option.admin_ids(query: "50%")
-    assert_equal [ a.id ], Option.admin_ids(status: "pendentes")
-    assert_equal [], Option.admin_ids(status: "rejeitadas")
+    assert_equal [ a.id ], Option.admin_ids(status: "fora-do-ar")
+    assert_equal [ b.id ], Option.admin_ids(status: "aprovadas")
   end
 
   test "admin_edit context refuses a duplicate of another option but not of itself" do

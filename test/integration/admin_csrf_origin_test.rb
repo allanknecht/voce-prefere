@@ -30,9 +30,9 @@ class AdminCsrfOriginTest < ActionDispatch::IntegrationTest
     assert_equal [ false, 0 ], [ @option.reload.needs_review, @option.report_count ]
   end
 
-  test "Reprovar/delete from the queue works with browser headers" do
-    token = token_for(admin_review_path, admin_reject_path(@option))
-    post admin_reject_path(@option), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
+  test "Excluir from the queue works with browser headers" do
+    token = token_for(confirm_delete_admin_option_path(@option, from: "review"), admin_option_path(@option))
+    delete admin_option_path(@option, from: "review"), params: { authenticity_token: token }, headers: BROWSER_ADMIN_HEADERS
     assert_redirected_to admin_review_path
     refute Option.exists?(@option.id)
   end
@@ -81,9 +81,9 @@ class AdminCsrfOriginTest < ActionDispatch::IntegrationTest
   end
 
   test "Origin null alone (no Sec-Fetch-Site), a foreign Origin, or nothing at all are refused" do
-    token = token_for(admin_review_path, admin_reject_path(@option))
+    token = token_for(confirm_delete_admin_option_path(@option, from: "review"), admin_option_path(@option))
     [ { "Origin" => "null" }, { "Origin" => "https://evil.example" }, { "Origin" => "https://www.example.com.evil.example" }, {} ].each do |headers|
-      post admin_reject_path(@option), params: { authenticity_token: token }, headers: headers
+      delete admin_option_path(@option, from: "review"), params: { authenticity_token: token }, headers: headers
       assert_response :unprocessable_entity, headers.inspect
     end
     assert Option.exists?(@option.id)
