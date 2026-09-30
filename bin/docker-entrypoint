@@ -1,0 +1,8 @@
+#!/bin/bash -e
+
+# Create or migrate the database (DATABASE_URL) before starting the Rails server.
+if [[ " $* " == *" ./bin/rails server"* ]]; then
+  ./bin/rails db:prepare
+fi
+
+exec "${@}"

@@ -1,0 +1,23 @@
+# Render Blueprint: free web service + external free Postgres (Neon).
+# Render's free tier has no persistent disk, so the database lives at Neon.
+services:
+  - type: web
+    name: voce-prefere
+    runtime: docker
+    plan: free
+    region: oregon
+    branch: main
+    healthCheckPath: /up
+    envVars:
+      - key: DATABASE_URL
+        sync: false        # paste the Neon connection string (…?sslmode=require) in the dashboard
+      - key: SECRET_KEY_BASE
+        generateValue: true
+      - key: ADMIN_SECRET
+        generateValue: true
+      - key: MODERATION_BLOCKLIST
+        sync: false        # comma/newline separated terms; not stored in the repo
+      - key: MODERATION_NAMES_BLOCKLIST
+        sync: false        # comma/newline separated names of real people, brands, ...
+      - key: RAILS_LOG_LEVEL
+        value: info

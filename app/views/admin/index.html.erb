@@ -1,0 +1,80 @@
+<div class="bg-white rounded-2xl shadow-xl p-6 border-4 border-black">
+  <h1 class="text-3xl font-black mb-6 text-center">🔒 Painel Admin</h1>
+
+  <% if notice %>
+    <p class="bg-green-100 border-2 border-green-400 text-green-700 px-4 py-3 rounded mb-4"><%= notice %></p>
+  <% end %>
+
+  <div class="mb-8">
+    <h2 class="text-2xl font-bold mb-4 text-red-600">
+      ⚠️ Denunciadas (<%= @reported_options.count %>)
+    </h2>
+    
+    <% if @reported_options.any? %>
+      <div class="space-y-3">
+        <% @reported_options.each do |option| %>
+          <div class="border-2 border-red-300 rounded-lg p-4 bg-red-50">
+            <div class="flex justify-between items-start mb-2">
+              <div class="flex-1">
+                <p class="font-bold text-lg"><%= option.text %></p>
+                <p class="text-sm text-gray-600">
+                  <%= option.report_count %> denúncias • 
+                  Status: <%= option.status %> • 
+                  ID: <%= option.id %>
+                </p>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-3">
+              <%= button_to "✓ Aprovar", admin_approve_path(option), method: :post, form: { class: "inline" },
+                  class: "bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded" %>
+              <%= button_to "✗ Rejeitar", admin_reject_path(option), method: :post, form: { class: "inline" },
+                  class: "bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded" %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="text-gray-500 text-center py-4">Nenhuma opção denunciada</p>
+    <% end %>
+  </div>
+
+  <div>
+    <h2 class="text-2xl font-bold mb-4 text-yellow-600">
+      ⏳ Pendentes (<%= @pending_options.count %>)
+    </h2>
+    
+    <% if @pending_options.any? %>
+      <div class="space-y-3">
+        <% @pending_options.each do |option| %>
+          <div class="border-2 border-yellow-300 rounded-lg p-4 bg-yellow-50">
+            <div class="flex justify-between items-start mb-2">
+              <div class="flex-1">
+                <p class="font-bold text-lg"><%= option.text %></p>
+                <p class="text-sm text-gray-600">
+                  Criado em <%= option.created_at.strftime("%d/%m/%Y %H:%M") %> • 
+                  ID: <%= option.id %>
+                </p>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-3">
+              <%= button_to "✓ Aprovar", admin_approve_path(option), method: :post, form: { class: "inline" },
+                  class: "bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded" %>
+              <%= button_to "✗ Rejeitar", admin_reject_path(option), method: :post, form: { class: "inline" },
+                  class: "bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded" %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="text-gray-500 text-center py-4">Nenhuma opção pendente</p>
+    <% end %>
+  </div>
+
+  <div class="mt-6 flex gap-3 justify-center">
+    <a href="<%= root_path %>" class="inline-block bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg">
+      ← Voltar ao site
+    </a>
+    <%= button_to "Logout", admin_logout_path, method: :delete, 
+        class: "bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg" %>
+  </div>
+</div>

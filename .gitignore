@@ -1,0 +1,71 @@
+# Ignore bundler config and installed gems
+/.bundle
+/vendor/bundle
+/vendor/cache
+
+# Ignore all environment files
+.env*
+!.env.example
+
+# Ignore all logfiles and tempfiles
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+!/tmp/pids/
+!/tmp/pids/.keep
+
+# Ignore pidfiles, but keep the directory
+/tmp/pids/*
+!/tmp/pids/.keep
+
+# Ignore storage files
+/storage/*
+!/storage/.keep
+/tmp/storage/*
+!/tmp/storage/.keep
+
+# Ignore public uploads
+/public/uploads
+
+# Ignore master key for decrypting credentials
+/config/master.key
+/config/credentials/*.key
+
+# Ignore precompiled assets
+/public/assets
+/public/packs
+/public/packs-test
+/app/assets/builds/*
+!/app/assets/builds/.keep
+
+# Ignore yarn files
+/node_modules
+/yarn-error.log
+yarn-debug.log*
+.yarn-integrity
+
+# Ignore SQLite databases
+/db/*.sqlite3
+/db/*.sqlite3-*
+
+# Ignore test coverage
+/coverage
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Ignore bootsnap cache
+/tmp/cache/bootsnap*
+
+# Ignore node_modules (if using importmap with npm)
+node_modules/
+
+# Ignore key files for decrypting credentials and more.
+/config/*.key
+

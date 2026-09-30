@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <title><%= content_for(:title) || "Você Prefere?" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <% if respond_to?(:public_form_token) %>
+      <%# Stateless anti-CSRF token for the public forms (this site sets no cookies). See PublicRequest. %>
+      <meta name="form-token" content="<%= public_form_token %>">
+    <% end %>
+    <%# Security headers (CSP, HSTS, ...) are sent as real HTTP headers, see config/initializers/. %>
+    <%= stylesheet_link_tag "tailwind" %>
+    <%= javascript_include_tag "application", defer: true %>
+  </head>
+
+  <body class="bg-gradient-to-br from-purple-600 via-pink-500 to-yellow-400 min-h-screen">
+    <div class="container mx-auto px-4 py-6 max-w-2xl">
+      <%= yield %>
+    </div>
+  </body>
+</html>
