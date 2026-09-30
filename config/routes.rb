@@ -33,5 +33,8 @@ Rails.application.routes.draw do
   patch "admin/options/:id", to: "admin_options#update", as: :admin_option
   delete "admin/options/:id", to: "admin_options#destroy"
 
+  # Admin: read-only log of deleted / rejected option texts
+  get "admin/deleted", to: "admin_deleted#index", as: :admin_deleted
+
   get "up" => "rails/health#show", as: :rails_health_check
 end

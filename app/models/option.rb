@@ -16,6 +16,11 @@ class Option < ApplicationRecord
   # Admin edits (save(context: :admin_edit)) must not duplicate another option's text.
   validate :text_not_taken_by_another_option, on: :admin_edit
 
+  # Every deletion path (admin delete, `destroy`, ...) keeps the text in `deleted_options`, inside
+  # the same transaction as the delete. `deletion_reason` defaults to "manual".
+  attr_writer :deletion_reason
+  before_destroy { DeletedOption.record!(self, reason: @deletion_reason || "manual") }
+
   # Any change (approve, reject, report, new submission, ...) drops the cached lists built
   # from approved options (see PairGenerator), so moderation shows up immediately.
   after_commit { PairGenerator.expire_caches! }
@@ -62,8 +67,14 @@ class Option < ApplicationRecord
     update!(status: "approved", report_count: 0)
   end
 
+  # "Reprovar": the option leaves the site (status rejected, kept in the admin list) and its
+  # text is logged in `deleted_options` in the same transaction.
   def reject!
-    update!(status: "rejected")
+    transaction do
+      already_rejected = status == "rejected"
+      update!(status: "rejected")
+      DeletedOption.record!(self, reason: "reprovada") unless already_rejected
+    end
   end
 
   def report!
