@@ -23,7 +23,12 @@ class Option < ApplicationRecord
   scope :review_order, -> { order(report_count: :desc, created_at: :asc, id: :asc) }
 
   before_validation :set_defaults, on: :create
+  before_save :set_text_key
   before_validation :guess_category, on: :create
+
+  # Public submissions: a duplicate (case/accent/space-insensitive) is refused with a friendly
+  # message. The UNIQUE index on `text_key` is the race-proof part (see OptionsController).
+  validate :text_key_free, on: :create
 
   # Admin edits (save(context: :admin_edit)) must not duplicate another option's text.
   validate :text_not_taken_by_another_option, on: :admin_edit
@@ -43,6 +48,16 @@ class Option < ApplicationRecord
   # Emoji and other symbols are kept as they are.
   def self.sort_key(text)
     text.to_s.unicode_normalize(:nfd).gsub(/\p{Mn}/, "").downcase.squish
+  end
+
+  # true when another option already has this text (same normalised key)
+  def self.text_taken?(text, except_id: nil)
+    key = sort_key(text)
+    return false if key.blank?
+
+    scope = where(text_key: key)
+    scope = scope.where.not(id: except_id) if except_id
+    scope.exists?
   end
 
   # Ids of ALL options matching the filters, in alphabetical order.
@@ -101,6 +116,16 @@ class Option < ApplicationRecord
   end
 
   private
+
+  # The normalised text behind the UNIQUE index, refreshed whenever the text changes (legacy
+  # duplicates keep NULL, see the migration).
+  def set_text_key
+    self.text_key = self.class.sort_key(text).presence if new_record? || text_changed?
+  end
+
+  def text_key_free
+    errors.add(:text, "já existe em outra opção") if self.class.text_taken?(text)
+  end
 
   def text_not_taken_by_another_option
     key = self.class.sort_key(text)

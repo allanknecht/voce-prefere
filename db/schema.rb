@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_01_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_01_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -31,9 +31,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_01_000000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "needs_review", default: false, null: false
+    t.string "text_key", limit: 255
     t.index ["needs_review"], name: "index_options_on_needs_review"
     t.index ["report_count"], name: "index_options_on_report_count"
     t.index ["status", "id"], name: "index_options_on_status_and_id"
+    t.index ["text_key"], name: "index_options_on_text_key", unique: true
   end
 
   create_table "rate_limits", id: false, force: :cascade do |t|

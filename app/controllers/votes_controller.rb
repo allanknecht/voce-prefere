@@ -1,6 +1,11 @@
 class VotesController < ApplicationController
   include PublicRequest
 
+  # A second vote on the same pair from the same (hashed) visitor within this window is treated
+  # as a double click / retry: same success response, not counted. No cookie, no new personal data
+  # (only a salted hash of ip+pair with a 10 s expiry, in the rate_limits table).
+  DUPLICATE_WINDOW = 10.seconds
+
   def create
     # Rate limiting
     unless RateLimiter.check(hashed_ip, :vote)
@@ -16,17 +21,19 @@ class VotesController < ApplicationController
       return
     end
 
-    option = Option.approved.find_by(id: option_id)
+    # From the in-memory list of approved options (dropped whenever an option changes): no query
+    option = PairGenerator.approved_option(option_id)
 
     unless option
       render json: { error: "Opção não encontrada" }, status: :not_found
       return
     end
 
-    # `option:` (already loaded) spares the extra SELECT of the belongs_to presence validation
-    Vote.create!(option: option, pair_hash: pair_hash)
-
-    RateLimiter.record(hashed_ip, :vote)
+    # One statement: claims the (visitor, pair) slot, or tells us it was claimed < 10 s ago.
+    if RateLimiter.claim_once(hashed_ip, "vote_pair:#{pair_hash}", DUPLICATE_WINDOW)
+      Vote.create!(option: option, pair_hash: pair_hash)
+      RateLimiter.record(hashed_ip, :vote)
+    end
 
     # Updated percentages and total from ONE grouped query
     percentages, total_votes = Vote.pair_summary(pair_hash)

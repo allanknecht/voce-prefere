@@ -11,7 +11,9 @@ class PairsController < ApplicationController
       return
     end
 
+    no_shared_cache
     @pair_hash = pair_hash
+    @next_pair = PairGenerator.next_pair(pair_hash)
     @percentages, @total_votes = Vote.pair_summary(pair_hash)
   end
 
@@ -29,6 +31,7 @@ class PairsController < ApplicationController
       return
     end
 
+    no_shared_cache
     @pair_hash = PairGenerator.hash_for(@pair[0], @pair[1])
     @percentages, @total_votes = Vote.pair_summary(@pair_hash)
   end

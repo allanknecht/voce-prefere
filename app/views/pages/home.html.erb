@@ -8,7 +8,7 @@
 <% if @pair %>
   <%= render "shared/voting", pair: @pair, pair_hash: @pair_hash, percentages: @percentages,
              total_votes: @total_votes, votes_label: "votos",
-             next_link: { href: root_path, label: "▶️ Próximo" } %>
+             next_link: { href: (@next_pair ? pair_path(PairGenerator.hash_for(*@next_pair)) : root_path), label: "▶️ Próximo" } %>
 <% else %>
   <div class="bg-white rounded-2xl shadow-xl p-8 border-4 border-black text-center">
     <p class="text-2xl font-bold mb-4">😅 Ops!</p>
