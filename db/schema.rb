@@ -10,7 +10,15 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_223000) do
+  create_table "deleted_options", force: :cascade do |t|
+    t.string "text", limit: 120, null: false
+    t.string "category", limit: 50
+    t.string "reason", limit: 20, null: false
+    t.datetime "deleted_at", null: false
+    t.index ["deleted_at"], name: "index_deleted_options_on_deleted_at"
+  end
+
   create_table "options", force: :cascade do |t|
     t.string "text", limit: 120, null: false
     t.string "status", default: "pending", null: false
