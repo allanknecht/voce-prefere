@@ -25,6 +25,10 @@ module ActiveSupport
 end
 
 class ActionDispatch::IntegrationTest
+  # What a real browser sends on a same-origin admin form post under our
+  # `Referrer-Policy: no-referrer` (Origin is "null", Sec-Fetch-Site says same-origin).
+  BROWSER_ADMIN_HEADERS = { "Origin" => "null", "Sec-Fetch-Site" => "same-origin" }.freeze
+
   include QueryCounter
   include PublicRequestHelper
 end
