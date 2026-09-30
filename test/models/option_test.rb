@@ -39,4 +39,40 @@ class OptionTest < ActiveSupport::TestCase
     refute option.valid?
     assert_includes option.errors[:text], "is too long (maximum is 120 characters)"
   end
+
+  test "sort_key ignores case, accents and extra spaces" do
+    assert_equal "acao  x".squish, Option.sort_key("  AÇÃO   x ")
+    assert_equal Option.sort_key("Comer açaí"), Option.sort_key("COMER ACAI")
+  end
+
+  test "admin_ids orders alphabetically and filters literally (LIKE wildcards are plain characters)" do
+    b = Option.create!(text: "b 50%", status: "approved")
+    a = Option.create!(text: "Á 50x", status: "pending")
+    assert_equal [ a.id, b.id ], Option.admin_ids
+    assert_equal [ b.id ], Option.admin_ids(query: "50%")
+    assert_equal [ a.id ], Option.admin_ids(status: "pendentes")
+    assert_equal [], Option.admin_ids(status: "rejeitadas")
+  end
+
+  test "admin_edit context refuses a duplicate of another option but not of itself" do
+    one = Option.create!(text: "Igual", status: "approved")
+    two = Option.create!(text: "Diferente", status: "approved")
+    two.text = "IGUAL"
+    refute two.valid?(:admin_edit)
+    assert two.valid? # public creation rules are unchanged
+    one.text = "igual"
+    assert one.valid?(:admin_edit)
+  end
+
+  test "destroy_with_votes! removes own votes and votes of pairs containing the option, nothing else" do
+    a = Option.create!(text: "A", status: "approved")
+    b = Option.create!(text: "B", status: "approved")
+    c = Option.create!(text: "C", status: "approved")
+    Vote.create!(option: a, pair_hash: "#{a.id}-#{b.id}")
+    Vote.create!(option: b, pair_hash: "#{a.id}-#{b.id}")
+    Vote.create!(option: b, pair_hash: "#{b.id}-#{c.id}")
+    a.destroy_with_votes!
+    assert_equal 1, Vote.count
+    assert_not Option.exists?(a.id)
+  end
 end

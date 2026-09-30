@@ -1,9 +1,6 @@
 class AdminController < ApplicationController
   include AdminArea
-
-  SESSION_TTL = 1.hour
-
-  before_action :authenticate_admin!
+  include AdminAuthentication
 
   def index
     @pending_options = Option.pending.order(created_at: :desc)
@@ -18,18 +15,5 @@ class AdminController < ApplicationController
   def reject
     Option.find(params[:id]).reject!
     redirect_to admin_index_path, notice: "Opção rejeitada"
-  end
-
-  private
-
-  def authenticate_admin!
-    authenticated_at = session[:admin_authenticated_at].to_i
-
-    if authenticated_at.positive? && (Time.current.to_i - authenticated_at) < SESSION_TTL.to_i
-      session[:admin_authenticated_at] = Time.current.to_i # sliding expiry
-    else
-      reset_session if session[:admin_authenticated_at] # nothing to clear (and no cookie to send) otherwise
-      redirect_to admin_login_path
-    end
   end
 end
