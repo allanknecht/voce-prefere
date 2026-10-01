@@ -1,0 +1,21 @@
+<%# The VOTE view: two option buttons + the visible "Ver resultado" link + the error message slot.
+    locals: screen (PairScreen) %>
+<div class="space-y-4 mb-6<%= " hidden" if screen.show_results %>">
+  <% screen.pair.each do |option| %>
+    <button
+      type="button"
+      class="vote-button w-full bg-white hover:bg-yellow-200 text-gray-900 font-bold py-6 px-6 rounded-2xl shadow-xl transform transition hover:scale-105 hover:rotate-1 text-xl border-4 border-black"
+      data-option-id="<%= option.id %>"
+    >
+      <%= option.text %>
+    </button>
+  <% end %>
+</div>
+
+<% unless screen.show_results %>
+  <p class="mb-4 text-center">
+    <a href="<%= pair_results_path(screen.pair_hash) %>" id="see-results-link" data-turbo="false" class="inline-block bg-white hover:bg-yellow-200 text-gray-900 font-bold py-2 px-5 rounded-xl border-4 border-black shadow-lg">👀 Ver resultado</a>
+  </p>
+<% end %>
+
+<p id="vote-message" class="mb-4 text-center font-bold text-white bg-red-600 rounded-xl border-4 border-black p-3" role="alert" hidden></p>

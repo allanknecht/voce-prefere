@@ -91,7 +91,7 @@ class VoteFirstAndCandidatesTest < ActionDispatch::IntegrationTest
       get pair_path(@pair)
       list = candidates
       assert_operator list.size, :>=, 1
-      assert_operator list.size, :<=, PairGenerator::NEXT_LIMIT
+      assert_operator list.size, :<=, NextPairSelector::LIMIT
       refute_includes list, @pair
       assert_equal list.uniq, list
       list.each do |hash|

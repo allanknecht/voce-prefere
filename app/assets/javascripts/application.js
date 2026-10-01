@@ -230,9 +230,10 @@
     }
 
     updateNextLink();
-    // Results are shown on load only when this browser already voted on this poll (or the
-    // explicit results URL was opened): a poll that merely HAS votes still opens as a vote screen.
-    if (store.get(votedKey) !== null && !container.dataset.resultsShown) showResults();
+    // The page ALWAYS opens as the full vote screen (two option buttons), also for a poll this
+    // browser already voted on or one whose votes were deleted: a results card without option
+    // buttons is what looked like a broken/empty screen. Clicking an option of an already-voted
+    // poll reveals the results without sending a second vote (see vote()).
 
     var voteMessage = document.getElementById("vote-message");
     var voteLocked = false; // THE lock: set synchronously at the start of the handler, before any fetch

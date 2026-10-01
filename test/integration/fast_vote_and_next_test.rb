@@ -178,7 +178,7 @@ class FastVoteAndNextTest < ActionDispatch::IntegrationTest
   test "with exactly one possible pair, there are no candidates and the page falls back to the home link" do
     Option.where.not(id: [ @good[0].id, @good[1].id ]).delete_all
     PairGenerator.expire_caches!
-    assert_empty PairGenerator.next_candidates(@pair)
+    assert_empty NextPairSelector.candidates(@pair)
     get pair_path(@pair)
     assert_response :success
     assert_equal "/", next_href

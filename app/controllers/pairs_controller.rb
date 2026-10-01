@@ -1,22 +1,16 @@
 class PairsController < ApplicationController
   include PublicRequest
   include PublicCaching
-  include PairPage
 
   # The VOTE screen, even when the pair already has votes (results only after voting here, or
   # on the explicit results URL below).
   def show
-    return unless load_pair(params[:id])
-
-    @show_results = false
+    load_screen(params[:id], show_results: false)
   end
 
   # Explicit results link ("Ver resultado", shared result links).
   def results
-    return unless load_pair(params[:id])
-
-    @show_results = true
-    render :show
+    render :show if load_screen(params[:id], show_results: true)
   end
 
   # Public aggregate, the same for every visitor (and cached in memory by PairGenerator).
@@ -26,30 +20,20 @@ class PairsController < ApplicationController
   end
 
   def day
-    @pair = PairGenerator.pair_of_day
-
-    unless @pair
-      redirect_to root_path
-      return
-    end
-
     no_shared_cache
-    load_pair_page(PairGenerator.hash_for(@pair[0], @pair[1]))
+    @screen = PairScreen.of_day
+    redirect_to root_path, status: :found unless @screen
   end
 
   private
 
-  # false (after redirecting to the home page) when the pair does not exist / is not on the air
-  def load_pair(pair_hash)
-    @pair = PairGenerator.pair_by_hash(pair_hash)
-
-    unless @pair
-      redirect_to root_path
-      return false
-    end
-
+  # A pair that does not exist, or whose option was deleted / hidden / is not approved, never
+  # renders a card: it redirects (302) to the home page, which always shows a complete screen
+  # (a random valid poll, or the friendly empty state).
+  def load_screen(pair_hash, show_results:)
     no_shared_cache
-    load_pair_page(pair_hash)
-    true
+    @screen = PairScreen.for_hash(pair_hash, show_results: show_results)
+    redirect_to root_path, status: :found unless @screen
+    @screen.present?
   end
 end

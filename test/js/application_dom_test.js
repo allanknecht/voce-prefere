@@ -219,10 +219,15 @@ async function test(name, fn) {
     assert.strictEqual(doc.getElementById("see-results-link").parentNode.classList.contains("hidden"), false);
   });
 
-  await test("results are shown on load only when this browser already voted on the poll", async () => {
-    const { doc } = await boot(() => json({}), (w) => w.localStorage.setItem("voted_1-2", "true"));
+  await test("a poll this browser already voted on STILL opens as the full vote screen; clicking reveals results without a second vote", async () => {
+    const { window, doc, calls } = await boot(() => json({}), (w) => w.localStorage.setItem("voted_1-2", "true"));
+    assert.strictEqual(results(doc), false);
+    assert.strictEqual(doc.querySelectorAll(".vote-button").length, 2);
+    doc.querySelectorAll(".vote-button").forEach((b) => assert.strictEqual(b.classList.contains("hidden"), false));
+    click(window, doc.querySelector(".vote-button"));
+    await tick(5);
+    assert.strictEqual(calls.length, 0, "no second vote is sent");
     assert.strictEqual(results(doc), true);
-    assert.strictEqual(doc.querySelector(".vote-button").classList.contains("hidden"), true);
   });
 
   await test("Próximo: first candidate not seen/voted by this browser; all seen -> first candidate", async () => {
