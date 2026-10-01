@@ -94,6 +94,7 @@
     if (!event.persisted) return;
     navLock = false;
     showNavError("");
+    updateNextLink();
   });
 
   // Regular (non-JS-handled) forms, e.g. the admin login / approve buttons.
@@ -147,7 +148,60 @@
     });
   }
 
+  // ---- Local storage (never sent to the server, no cookies) ---------------------------------
+  // Which polls this browser already voted on / saw. Private mode or blocked storage must not
+  // break the page: every access is wrapped, and an in-memory fallback keeps one page working.
+  var SEEN_KEY = "seen_pairs";
+  var SEEN_MAX = 500;
+  var memoryStore = {};
+  var store = {
+    get: function (key) {
+      try { var value = window.localStorage.getItem(key); return value === undefined ? null : value; }
+      catch (e) { return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : null; }
+    },
+    set: function (key, value) {
+      try { window.localStorage.setItem(key, value); } catch (e) { memoryStore[key] = value; }
+    }
+  };
+
+  function seenPairs() {
+    try {
+      var list = JSON.parse(store.get(SEEN_KEY) || "[]");
+      return Array.isArray(list) ? list : [];
+    } catch (e) { return []; }
+  }
+
+  function isSeen(hash) {
+    return seenPairs().indexOf(hash) !== -1 || store.get("voted_" + hash) !== null;
+  }
+
+  function markSeen(hash) {
+    var list = seenPairs().filter(function (h) { return h !== hash; });
+    list.push(hash);
+    store.set(SEEN_KEY, JSON.stringify(list.slice(-SEEN_MAX)));
+  }
+
+  // "Próximo": the server embeds a few candidate polls (same category, never the current one,
+  // fewest votes first) in data-candidates and the plain href already points to the first one
+  // (that is what works without JS). Here the link is pointed to the first candidate this browser
+  // has not voted on; if all were seen it keeps the first one. Decided when the page loads and
+  // after each vote, never at click time, so one click is always one fixed destination.
+  function updateNextLink() {
+    var link = document.getElementById("next-link");
+    if (!link) return;
+    var candidates = (link.dataset.candidates || "").split(/\s+/).filter(function (h) { return /^\d+-\d+$/.test(h); });
+    if (candidates.length === 0) return;
+    var current = (document.getElementById("voting-container") || {}).dataset;
+    var fresh = candidates.filter(function (h) { return (!current || h !== current.pairHash) && !isSeen(h); });
+    var chosen = fresh.length > 0 ? fresh[0] : candidates[0];
+    link.setAttribute("href", "/pairs/" + chosen);
+  }
+
   // ---- Voting (home, /pairs/:hash, /pairs/day) --------------------------------
+  function pluralVotes(count, suffix) {
+    return count + (Number(count) === 1 ? " voto" : " votos") + (suffix ? " " + suffix : "");
+  }
+
   function initVoting() {
     var container = document.getElementById("voting-container");
     if (!container) return;
@@ -156,9 +210,11 @@
     var buttons = document.querySelectorAll(".vote-button");
     var pairHash = container.dataset.pairHash;
     var votedKey = "voted_" + pairHash; // localStorage only: never sent to the server
+    var seeResults = document.getElementById("see-results-link");
 
     function showResults() {
       buttons.forEach(function (b) { b.classList.add("hidden"); });
+      if (seeResults && seeResults.parentNode) seeResults.parentNode.classList.add("hidden");
       results.classList.remove("hidden");
     }
 
@@ -170,10 +226,14 @@
         if (label) label.textContent = pct + "%";
         if (bar) bar.style.width = pct + "%";
       });
-      document.getElementById("total-votes").textContent = totalVotes;
+      document.getElementById("total-votes").textContent = pluralVotes(totalVotes, container.dataset.votesSuffix);
     }
 
-    if (localStorage.getItem(votedKey)) showResults();
+    updateNextLink();
+    // The page ALWAYS opens as the full vote screen (two option buttons), also for a poll this
+    // browser already voted on or one whose votes were deleted: a results card without option
+    // buttons is what looked like a broken/empty screen. Clicking an option of an already-voted
+    // poll reveals the results without sending a second vote (see vote()).
 
     var voteMessage = document.getElementById("vote-message");
     var voteLocked = false; // THE lock: set synchronously at the start of the handler, before any fetch
@@ -196,7 +256,7 @@
 
     function vote(button) {
       if (voteLocked) return; // double click / double tap / Enter + click: ignored by the flag
-      if (localStorage.getItem(votedKey)) { showResults(); return; }
+      if (store.get(votedKey) !== null) { showResults(); return; }
       voteLocked = true;
       lockVoting(true, button);
       setBusy(button, true);
@@ -206,7 +266,9 @@
       postJSON("/votes", { option_id: button.dataset.optionId, pair_hash: pairHash })
         .then(function (data) {
           if (data && data.success) {
-            localStorage.setItem(votedKey, "true");
+            store.set(votedKey, "true");
+            markSeen(pairHash);
+            updateNextLink();
             updateResults(data.percentages, data.total_votes);
             finish();
             showResults(); // stays locked: there is nothing left to vote on

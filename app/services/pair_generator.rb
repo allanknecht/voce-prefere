@@ -21,11 +21,6 @@ class PairGenerator
     new.pair_of_day
   end
 
-  # A pair different from `current_hash` (nil when there is no other pair at all).
-  def self.next_pair(current_hash)
-    new.next_pair(current_hash)
-  end
-
   # An approved option by id straight from the in-memory list (no query), nil when not on air.
   def self.approved_option(id)
     new.approved_option(id)
@@ -62,16 +57,10 @@ class PairGenerator
     options.sample(2)
   end
 
-  # "Próximo": decided by the server when the page is rendered (so the link is fixed, nothing
-  # random happens at click time) and never the pair that is on the screen now.
-  def next_pair(current_hash)
-    12.times do
-      pair = random_pair
-      return pair if pair.nil? || hash_for(pair) != current_hash.to_s
-    end
-    # Unlucky draws (tiny catalogue): enumerate the remaining pairs.
-    candidates = pairable_options.flat_map { |options| options.combination(2).to_a }
-    candidates.reject { |pair| hash_for(pair) == current_hash.to_s }.sample
+  # [[good options...], [bad options...]] without the categories that have fewer than 2 options
+  # (all approved, from the in-memory list: no query)
+  def pairable_options
+    approved_options.group_by(&:category).values.select { |options| options.length >= 2 }
   end
 
   def approved_option(id)
@@ -107,11 +96,6 @@ class PairGenerator
 
   def hash_for(pair)
     self.class.hash_for(pair[0], pair[1])
-  end
-
-  # [[good options...], [bad options...]] without the categories that have fewer than 2 options
-  def pairable_options
-    approved_options.group_by(&:category).values.select { |options| options.length >= 2 }
   end
 
   def approved_options

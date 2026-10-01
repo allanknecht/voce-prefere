@@ -1,0 +1,22 @@
+<%# One bar per option: text, percentage and bar. Used by the results view and the Polêmicos ranking.
+    locals: options, percentages ({ option_id => pct }), size (:large for the results view),
+            live (true: adds the data attributes application.js updates after a vote) %>
+<% large = local_assigns[:size] == :large %>
+<% live = local_assigns[:live] %>
+<% options.each do |option| %>
+  <div class="<%= "mb-2" unless large %>">
+    <div class="flex justify-between mb-1">
+      <span class="<%= large ? "font-bold" : "font-semibold" %> text-sm"><%= option.text %></span>
+      <span class="font-bold text-sm"<% if live %> data-option-id="<%= option.id %>-percentage"<% end %>>
+        <%= percentages[option.id] || 0 %>%
+      </span>
+    </div>
+    <div class="bg-gray-200 rounded-full overflow-hidden <%= large ? "h-6 border-2 border-black" : "h-4" %>">
+      <div
+        class="bg-gradient-to-r from-purple-500 to-pink-500 h-full<%= " transition-all duration-500" if large %>"
+        <% if live %>data-option-id="<%= option.id %>-bar"<% end %>
+        data-width="<%= percentages[option.id] || 0 %>"
+      ></div>
+    </div>
+  </div>
+<% end %>

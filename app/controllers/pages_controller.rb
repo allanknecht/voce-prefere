@@ -3,15 +3,10 @@ class PagesController < ApplicationController
   include PublicCaching
 
   # The random pair MUST stay random per request, so the home page is never cached.
+  # With no pair at all the page renders the friendly empty state (never an empty card).
   def home
     no_shared_cache
-    @pair = PairGenerator.random_pair
-
-    if @pair
-      @pair_hash = PairGenerator.hash_for(@pair[0], @pair[1])
-      @next_pair = PairGenerator.next_pair(@pair_hash)
-      @percentages, @total_votes = Vote.pair_summary(@pair_hash)
-    end
+    @screen = PairScreen.random
   end
 
   # Static, identical for every visitor: cacheable by browsers and shared caches.
