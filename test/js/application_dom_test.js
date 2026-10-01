@@ -291,6 +291,84 @@ async function test(name, fn) {
     assert.strictEqual(results(doc), true);
   });
 
+  // ---- first-party analytics beacon ---------------------------------------------------------------
+  const PAGE_WITH_SCREEN = (screen) => PAGE.replace("<body>", `<body data-screen="${screen}">`);
+  async function bootAnalytics(screen, url, before, referrer) {
+    const dom = new JSDOM(PAGE_WITH_SCREEN(screen), { url, ...(referrer ? { referrer } : {}), runScripts: "outside-only", pretendToBeVisual: true, virtualConsole: quiet() });
+    await new Promise((r) => setTimeout(r, 10));
+    const w = dom.window;
+    if (before) before(w);
+    const calls = [];
+    w.fetch = (u, o) => { calls.push({ url: u, options: o, body: JSON.parse(o.body) }); return json({}); };
+    w.eval(source);
+    w.document.dispatchEvent(new w.Event("DOMContentLoaded"));
+    return { w, doc: w.document, calls };
+  }
+  const visits = (calls) => calls.filter((c) => c.body.kind === "visit");
+  const today = () => { const d = new Date(); const p = (n) => (n < 10 ? "0" : "") + n; return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
+
+  await test("analytics: ONE visit beacon per page load with only whitelisted fields; first visit is not returning; the date is stored locally", async () => {
+    const { w, calls } = await bootAnalytics("pair", "https://example.test/pairs/1-2?c=1&s=Zap&utm_source=ignored", null, "https://www.google.com/search?q=secret");
+    assert.strictEqual(visits(calls).length, 1);
+    const c = visits(calls)[0];
+    assert.strictEqual(c.url, "/m");
+    assert.strictEqual(c.options.method, "POST");
+    assert.strictEqual(c.options.credentials, "omit");
+    assert.strictEqual(c.options.keepalive, true);
+    assert.deepStrictEqual(Object.keys(c.body).sort(), ["kind", "pair_hash", "referrer", "returning", "screen", "tag", "via_share"]);
+    assert.strictEqual(c.body.referrer, "www.google.com", "host name only, never path or query");
+    assert.strictEqual(c.body.tag, "Zap");
+    assert.strictEqual(c.body.via_share, true);
+    assert.strictEqual(c.body.returning, false);
+    assert.strictEqual(c.body.screen, "pair");
+    assert.strictEqual(w.localStorage.getItem("last_visit"), today());
+    assert.ok(!JSON.stringify(c.body).includes("secret"));
+  });
+
+  await test("analytics: returning = last visit date before today; same day again is not returning", async () => {
+    let r = await bootAnalytics("home", "https://example.test/", (w) => w.localStorage.setItem("last_visit", "2020-01-01"));
+    assert.strictEqual(visits(r.calls)[0].body.returning, true);
+    assert.strictEqual(r.w.localStorage.getItem("last_visit"), today());
+    r = await bootAnalytics("home", "https://example.test/", (w) => w.localStorage.setItem("last_visit", today()));
+    assert.strictEqual(visits(r.calls)[0].body.returning, false);
+    r = await bootAnalytics("home", "https://example.test/", (w) => w.localStorage.setItem("last_visit", "junk"));
+    assert.strictEqual(typeof visits(r.calls)[0].body.returning, "boolean");
+  });
+
+  await test("analytics: storage unavailable -> new visitor, page does not break", async () => {
+    const broken = (w) => { Object.defineProperty(w, "localStorage", { get() { throw new w.DOMException("denied", "SecurityError"); } }); };
+    const { calls } = await bootAnalytics("home", "https://example.test/", broken);
+    assert.strictEqual(visits(calls).length, 1);
+    assert.strictEqual(visits(calls)[0].body.returning, false);
+  });
+
+  await test("analytics: pages without data-screen (admin) send nothing; a failing fetch is swallowed", async () => {
+    const dom = new JSDOM(PAGE, { url: "https://example.test/admin", runScripts: "outside-only", virtualConsole: quiet() });
+    await new Promise((r) => setTimeout(r, 10));
+    let n = 0;
+    dom.window.fetch = () => { n++; return json({}); };
+    dom.window.eval(source);
+    dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
+    assert.strictEqual(n, 0);
+    const d2 = new JSDOM(PAGE_WITH_SCREEN("home"), { url: "https://example.test/", runScripts: "outside-only", virtualConsole: quiet() });
+    await new Promise((r) => setTimeout(r, 10));
+    d2.window.fetch = () => { throw new Error("blocked"); };
+    d2.window.eval(source);
+    d2.window.document.dispatchEvent(new d2.window.Event("DOMContentLoaded"));
+  });
+
+  await test("analytics: Compartilhar sends one share_click beacon and the shared URL carries ?c=1", async () => {
+    let shared;
+    const { w, doc, calls } = await bootAnalytics("home", "https://example.test/", (win) => {
+      win.navigator.share = (data) => { shared = data; return Promise.resolve(); };
+      const btn = win.document.createElement("button"); btn.id = "share-button"; win.document.body.appendChild(btn);
+    });
+    doc.getElementById("share-button").click();
+    assert.strictEqual(calls.filter((c) => c.body.kind === "share_click").length >= 1, true);
+    assert.strictEqual(calls.filter((c) => c.body.kind === "share_click")[0].body.pair_hash, "1-2");
+    assert.strictEqual(shared.url, "https://example.test/pairs/1-2?c=1");
+  });
+
   await test("no inline handlers / eval / external URLs in the script", () => {
     assert.ok(!/\beval\(|new Function|innerHTML|document\.write/.test(source));
     assert.ok(!/https?:\/\//.test(source.replace(/\/\/.*$/gm, "")));

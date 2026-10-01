@@ -17,6 +17,9 @@ Rails.application.routes.draw do
   get "pairs/:id/results", to: "pairs#results", as: :pair_results
   get "pairs/:id", to: "pairs#show", as: :pair
 
+  # First-party analytics beacon (page view / share click): same-origin only, no cookie, no body reply
+  post "m", to: "analytics#create", as: :analytics_beacon
+
   # Admin authentication
   get "admin/login", to: "admin_sessions#new", as: :admin_login
   post "admin/login", to: "admin_sessions#create"
@@ -33,6 +36,9 @@ Rails.application.routes.draw do
   get "admin/options/:id/delete", to: "admin_options#confirm_destroy", as: :confirm_delete_admin_option
   patch "admin/options/:id", to: "admin_options#update", as: :admin_option
   delete "admin/options/:id", to: "admin_options#destroy"
+
+  # Admin: first-party statistics (no personal data)
+  get "admin/stats", to: "admin_stats#index", as: :admin_stats
 
   # Admin: read-only log of deleted option texts
   get "admin/deleted", to: "admin_deleted#index", as: :admin_deleted

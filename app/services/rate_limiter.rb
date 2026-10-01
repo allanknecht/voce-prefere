@@ -3,6 +3,7 @@ class RateLimiter
     submit: { count: 5, window: 1.hour },
     vote: { count: 100, window: 1.hour },
     report: { count: 10, window: 1.hour },
+    beacon: { count: 600, window: 1.hour },
     admin_login: { count: 5, window: 15.minutes }
   }.freeze
 

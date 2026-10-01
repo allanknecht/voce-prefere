@@ -47,6 +47,37 @@ What the app does and does not do, with the code that enforces it. Verified by t
 - **Remaining caveat:** the hosting platform itself (Render's load balancer/edge, Neon) sees IPs in its own
   infrastructure; that is outside this app's control. The app only sees the address in memory, to compute the hash.
 
+## First-party analytics (anonymous, server side)
+
+Code: `app/services/analytics.rb`, `app/services/analytics/*`, `AnalyticsController` (`POST /m`), `/admin/stats`.
+
+**Measured** (tables `visits`, `events`, `daily_stats`): day and hour (America/Sao_Paulo), screen kind (home / pair / results / day /
+controversial / about / other, never a URL), the pair hash on pair screens, device class (mobile / desktop / tablet),
+referrer **registrable domain only** (e.g. `google.com`, `direto`; never path or query) or a sanitized `?s=` / `?utm_source=` tag
+(`[a-z0-9_-]{1,24}`), `via_share` (arrived through a link made by Compartilhar, which carries `?c=1`), `returning` (a boolean, see below),
+and for events: `vote`, `submit_option`, `share_click`, `shared_link_visit`, `report` (option id only for vote/report, never any text).
+
+**Not measured / not stored**: no cookie, no raw IP, no user agent, no full URL, no option text, no fingerprint, no third party, no external script.
+There is nothing that identifies a person and nothing that links the same person across days.
+
+- `visitor_hash` = first 16 hex of `HMAC-SHA256(daily_salt, "ip|user_agent")` with `daily_salt = HMAC(key derived from SECRET_KEY_BASE, ISO date)`.
+  The salt changes every day, so the hash is not reversible to an IP/UA and cannot be linked from one day to the next.
+  Consequently **visitors are counted per day** (the same person on two days counts twice). The IP and the UA only exist in memory
+  while computing the hash; they are never written to the database or the log.
+- **Returning visitors without an identifier**: the script keeps the date of the last visit in `localStorage` (`last_visit`) and sends only
+  the boolean `returning` (= that date is before today). The date never leaves the browser. Without storage the visit counts as new.
+- **How a visit is recorded**: public pages are `no-cache`; right after load, our own script sends ONE `POST /m {kind: "visit", ...}`
+  (`fetch` with `keepalive`, `credentials: "omit"`) and the server records the visit then (the page `GET` records nothing, so there is no double count).
+  `share_click` is a second beacon. `vote` / `submit_option` / `report` are recorded by their controllers after success.
+  The insert runs after the response was sent (`rack.after_reply`) and every error is rescued: analytics can never break a request.
+- **Beacon protection**: same-origin only (`Sec-Fetch-Site`, see CSRF above), whitelisted kinds (`visit`, `share_click`) and screens, rate limited by
+  the existing hashed-IP limiter, always `204`, no cookie.
+- **Never recorded**: bots / crawlers / link-preview fetchers / uptime monitors / scripts and empty user agents (list in `Analytics::BOT_PATTERN`,
+  tested), `/up`, the admin area, assets, and every request with **`Sec-GPC: 1`** or **`DNT: 1`** (honoured).
+- **Retention**: raw rows are kept 90 days, then folded into one `daily_stats` row per day (counts, device counts, top sources, hour histogram,
+  funnel counts) and deleted. The compaction runs opportunistically (at most hourly, guarded by an atomic marker row) and with `bin/rails stats:compact`.
+- `/admin/stats` is admin-only (`AdminArea`, session + CSRF, `no-store`), server rendered, CSS bars, no JS charts.
+
 ## Third parties
 
 - No analytics, no CDN, no fonts, no captcha. Cloudflare Turnstile is **not** integrated, so
@@ -70,7 +101,7 @@ limited; the session is renewed on login (no fixation) and expires after 1 hour.
 
 ## What is stored
 
-Option texts (with a good/bad category and a review flag), votes per option/pair, report counts, timestamps, the text/category/reason/date of options the admin deleted or rejected (`deleted_options`, no author data), and the short-lived hashed
+Anonymous analytics rows (see above), option texts (with a good/bad category and a review flag), votes per option/pair, report counts, timestamps, the text/category/reason/date of options the admin deleted or rejected (`deleted_options`, no author data), and the short-lived hashed
 rate-limit keys. Nothing that identifies a person.
 
 ## Input handling

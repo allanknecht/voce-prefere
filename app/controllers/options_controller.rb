@@ -34,6 +34,7 @@ class OptionsController < ApplicationController
 
     if option.save
       RateLimiter.record(hashed_ip, :submit)
+      Analytics.record_event(request, "submit_option")
       render json: {
         success: true,
         message: "Opção enviada! Já está no ar e será revisada.",
@@ -62,6 +63,7 @@ class OptionsController < ApplicationController
 
     option.report!
     RateLimiter.record(hashed_ip, :report)
+    Analytics.record_event(request, "report", option_id: option.id)
 
     render json: { success: true, message: "Denúncia registrada" }
   end

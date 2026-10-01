@@ -13,7 +13,7 @@
     <%= javascript_include_tag "application", defer: true %>
   </head>
 
-  <body class="bg-gradient-to-br from-purple-600 via-pink-500 to-yellow-400 min-h-screen">
+  <body class="bg-gradient-to-br from-purple-600 via-pink-500 to-yellow-400 min-h-screen"<% if @analytics_screen %> data-screen="<%= @analytics_screen %>"<% end %>>
     <div class="container mx-auto px-4 py-6 max-w-2xl">
       <%= yield %>
     </div>

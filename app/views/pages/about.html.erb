@@ -33,7 +33,7 @@
       <ul class="list-disc list-inside space-y-1">
         <li><strong>SEM cadastro, login ou email</strong></li>
         <li><strong>SEM cookies</strong> nas páginas públicas (só o painel de moderação usa um cookie de sessão, restrito a /admin)</li>
-        <li><strong>SEM analytics de terceiros</strong> (Google Analytics, etc.)</li>
+        <li><strong>SEM analytics de terceiros</strong> (Google Analytics, etc.): ninguém recebe dados deste site. Só medimos o uso de forma anônima, nos nossos próprios servidores (veja abaixo)</li>
         <li><strong>SEM armazenamento de IPs</strong> - apenas hash temporário para anti-spam</li>
         <li><strong>SEM IP nos logs do servidor</strong> - o endereço é removido antes de qualquer registro</li>
       </ul>
@@ -46,6 +46,7 @@
         <li>Contagem de votos por opção</li>
         <li>Categoria (boa/ruim), se a opção está em revisão e contagem de denúncias</li>
         <li>Datas de criação</li>
+        <li>Contagens anônimas de uso (sem IP, sem cookie, sem identificador)</li>
       </ul>
 
       <p class="mt-3">
@@ -53,6 +54,23 @@
         do seu IP (com sal que muda a cada hora) que expira em no máximo 1 hora. 
         Nunca armazenamos o IP real no banco de dados.
       </p>
+
+      <p class="mt-3">
+        <strong>Estatísticas de uso (anônimas):</strong> para saber quantas pessoas usam o site, contamos visitas e
+        ações (votar, enviar opção, compartilhar, denunciar) no nosso próprio banco de dados. Guardamos apenas: dia e hora,
+        qual tela (início, enquete, resultado, par do dia...), o tipo de aparelho (celular, computador ou tablet),
+        o <em>domínio</em> de onde você veio (por exemplo "google.com" ou "direto", nunca o endereço completo), se você abriu
+        um link compartilhado e se já tinha visitado em outro dia.
+      </p>
+      <ul class="list-disc list-inside space-y-1 mt-2">
+        <li><strong>SEM cookies</strong> e <strong>SEM identificador de pessoa</strong>.</li>
+        <li><strong>SEM IP e SEM user agent guardados</strong>. Eles só entram, no momento da visita, numa conta de hash que muda todo dia
+            (o mesmo visitante em dois dias não pode ser ligado) e nunca podem ser recuperados.</li>
+        <li>"Já visitou antes" é decidido no seu navegador (guardamos só a data da última visita no localStorage; essa data nunca sai do navegador, só enviamos "sim" ou "não").</li>
+        <li>Dados brutos são apagados após 90 dias; ficam só totais por dia.</li>
+        <li>Se o seu navegador envia <strong>Sec-GPC</strong> ou <strong>Do Not Track</strong>, não contamos nada. Robôs e verificadores também não são contados.</li>
+        <li>Nenhum terceiro recebe esses dados.</li>
+      </ul>
 
       <p class="mt-3">
         <strong>Votos duplicados:</strong> Prevenidos por armazenamento local no 
