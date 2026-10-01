@@ -175,21 +175,10 @@ class FastVoteAndNextTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "next_pair never returns the current pair, even with a tiny catalogue (only 2 pairs exist)" do
-    Option.where.not(id: [ @good[0].id, @good[1].id, @good[2].id ]).delete_all
-    PairGenerator.expire_caches!
-    current = PairGenerator.hash_for(@good[0], @good[1])
-    200.times do
-      pair = PairGenerator.next_pair(current)
-      assert pair
-      refute_equal current, PairGenerator.hash_for(*pair)
-    end
-  end
-
-  test "with exactly one possible pair, next_pair returns nil and the page falls back to the home link" do
+  test "with exactly one possible pair, there are no candidates and the page falls back to the home link" do
     Option.where.not(id: [ @good[0].id, @good[1].id ]).delete_all
     PairGenerator.expire_caches!
-    assert_nil PairGenerator.next_pair(@pair)
+    assert_empty PairGenerator.next_candidates(@pair)
     get pair_path(@pair)
     assert_response :success
     assert_equal "/", next_href

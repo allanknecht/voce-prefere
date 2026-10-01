@@ -4,9 +4,9 @@
   <p class="font-bold text-lg mb-3 break-words">“<%= @option.text %>”</p>
   <p class="bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
     Isto apaga a opção para sempre, junto com
-    <strong><%= @votes_count %> <%= @votes_count == 1 ? "voto" : "votos" %></strong>
+    <strong><%= votes_label(@votes_count) %></strong>
     (incluindo votos de pares que a contêm) e
-    <strong><%= @option.report_count %> <%= @option.report_count == 1 ? "denúncia" : "denúncias" %></strong>.
+    <strong><%= reports_label(@option.report_count) %></strong>.
     Não dá para desfazer. Links de pares com esta opção deixarão de funcionar.
   </p>
 

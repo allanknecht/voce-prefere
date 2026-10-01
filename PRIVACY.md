@@ -13,11 +13,13 @@ What the app does and does not do, with the code that enforces it. Verified by t
 - The **only cookie** is the admin session cookie `_voce_prefere_admin`, set only on `/admin/*`:
   `Path=/admin`, `Secure`, `HttpOnly`, `SameSite=Strict`, expires after 1 hour
   (`config/initializers/session_store.rb`, tested in `test/integration/admin_test.rb`).
-- Vote de-duplication uses the browser's `localStorage` only (never sent to the server).
+- Vote de-duplication and "Próximo" use the browser's `localStorage` only (`voted_<pair>` and a list `seen_pairs` of the polls
+  already voted on, capped at 500; never sent to the server). The server only embeds a few candidate pair links in the page;
+  the script picks the first one this browser has not voted on. Without storage (private mode) the first candidate is used.
 
 ## CSRF
 
-- **Admin** (login, approve, reject, logout): Rails' session-based authenticity token (`protect_from_forgery`,
+- **Admin** (login, approve, delete, logout): Rails' session-based authenticity token (`protect_from_forgery`,
   `app/controllers/concerns/admin_area.rb`), login form is a POST form (`/admin/login`), no `?secret=` URLs.
 - **Public POSTs** (vote, submit option, report): there is no session, so CSRF protection is **stateless**:
   each request must (1) not be `Sec-Fetch-Site: cross-site`, (2) carry an `Origin` (or `Referer`) equal to the site's

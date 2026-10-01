@@ -10,15 +10,16 @@ const assert = require("assert");
 const source = fs.readFileSync(path.join(__dirname, "../../app/assets/javascripts/application.js"), "utf8");
 
 const PAGE = `<!DOCTYPE html><html><head><meta name="form-token" content="tok"></head><body>
-<div id="voting-container" data-pair-hash="1-2">
+<div id="voting-container" data-pair-hash="1-2" data-votes-suffix="">
   <button type="button" class="vote-button" data-option-id="1">A</button>
   <button type="button" class="vote-button" data-option-id="2">B</button>
+  <p><a id="see-results-link" href="/pairs/1-2/results">Ver resultado</a></p>
   <p id="vote-message" hidden></p>
   <div id="results" class="hidden">
     <span data-option-id="1-percentage"></span><div data-option-id="1-bar"></div>
     <span data-option-id="2-percentage"></span><div data-option-id="2-bar"></div>
     <span id="total-votes"></span>
-    <a id="next" href="/pairs/3-4">Próximo</a>
+    <a id="next-link" href="/pairs/3-4" data-candidates="3-4 5-6 7-8 9-10">Próximo</a>
   </div>
 </div>
 <button id="submit-button">Enviar sua opção</button>
@@ -37,11 +38,12 @@ const PAGE = `<!DOCTYPE html><html><head><meta name="form-token" content="tok"><
 
 const quiet = () => new VirtualConsole(); // jsdom cannot navigate: swallow its "not implemented" noise
 
-async function boot(fetchImpl) {
+async function boot(fetchImpl, before) {
   const dom = new JSDOM(PAGE, { url: "https://example.test/", runScripts: "outside-only", pretendToBeVisual: true, virtualConsole: quiet() });
   await new Promise((r) => setTimeout(r, 10)); // let jsdom fire its own DOMContentLoaded first (the script then runs once, as in a browser with `defer`)
   const { window } = dom;
   const calls = [];
+  if (before) before(window);
   window.fetch = function (url, options) { calls.push({ url, options }); return fetchImpl(url, options, calls.length); };
   window.eval(source);
   window.document.dispatchEvent(new window.Event("DOMContentLoaded"));
@@ -78,7 +80,7 @@ async function test(name, fn) {
     assert.strictEqual(calls.length, 1);
     assert.ok(!doc.getElementById("results").classList.contains("hidden"));
     assert.strictEqual(doc.querySelector('[data-option-id="1-percentage"]').textContent, "60%");
-    assert.strictEqual(doc.getElementById("total-votes").textContent, "5");
+    assert.strictEqual(doc.getElementById("total-votes").textContent, "5 votos");
     assert.strictEqual(window.localStorage.getItem("voted_1-2"), "true");
     assert.strictEqual(a.disabled, true, "stays locked after success");
     const body = JSON.parse(calls[0].options.body);
@@ -156,7 +158,7 @@ async function test(name, fn) {
 
   await test("Próximo: one click = one navigation; further clicks are ignored (default prevented)", async () => {
     const { window, doc } = await boot(() => json({}));
-    const next = doc.getElementById("next");
+    const next = doc.getElementById("next-link");
     const first = new window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
     next.dispatchEvent(first);
     assert.strictEqual(first.defaultPrevented, false, "first click navigates");
@@ -175,7 +177,7 @@ async function test(name, fn) {
     w.setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
     w.eval(source);
     w.document.dispatchEvent(new w.Event("DOMContentLoaded"));
-    const next = w.document.getElementById("next");
+    const next = w.document.getElementById("next-link");
     click(w, next);
     const nav = timers.find((t) => t.ms >= 10000);
     assert.ok(nav, "nav timeout scheduled");
@@ -205,6 +207,83 @@ async function test(name, fn) {
     await tick(5);
     assert.strictEqual(a.disabled, false); assert.strictEqual(b.disabled, false);
     assert.match(w.document.getElementById("vote-message").textContent, /Erro ao votar/);
+  });
+
+  const results = (doc) => doc.getElementById("results").classList.contains("hidden") === false;
+  const href = (doc) => doc.getElementById("next-link").getAttribute("href");
+
+  await test("a poll that has votes but was not voted by this browser opens as the VOTE screen (results hidden)", async () => {
+    const { doc } = await boot(() => json({}));
+    assert.strictEqual(results(doc), false);
+    assert.strictEqual(doc.querySelector(".vote-button").classList.contains("hidden"), false);
+    assert.strictEqual(doc.getElementById("see-results-link").parentNode.classList.contains("hidden"), false);
+  });
+
+  await test("results are shown on load only when this browser already voted on the poll", async () => {
+    const { doc } = await boot(() => json({}), (w) => w.localStorage.setItem("voted_1-2", "true"));
+    assert.strictEqual(results(doc), true);
+    assert.strictEqual(doc.querySelector(".vote-button").classList.contains("hidden"), true);
+  });
+
+  await test("Próximo: first candidate not seen/voted by this browser; all seen -> first candidate", async () => {
+    let r = await boot(() => json({}));
+    assert.strictEqual(href(r.doc), "/pairs/3-4", "nothing seen: server's first candidate");
+    r = await boot(() => json({}), (w) => w.localStorage.setItem("seen_pairs", JSON.stringify(["3-4", "5-6"])));
+    assert.strictEqual(href(r.doc), "/pairs/7-8");
+    r = await boot(() => json({}), (w) => w.localStorage.setItem("voted_7-8", "true")); // legacy per-pair key counts as seen
+    assert.strictEqual(href(r.doc), "/pairs/3-4");
+    r = await boot(() => json({}), (w) => { w.localStorage.setItem("seen_pairs", JSON.stringify(["3-4"])); w.localStorage.setItem("voted_5-6", "true"); });
+    assert.strictEqual(href(r.doc), "/pairs/7-8");
+    r = await boot(() => json({}), (w) => w.localStorage.setItem("seen_pairs", JSON.stringify(["3-4", "5-6", "7-8", "9-10"])));
+    assert.strictEqual(href(r.doc), "/pairs/3-4", "all seen: falls back to the first candidate");
+    r = await boot(() => json({}), (w) => w.localStorage.setItem("seen_pairs", "{not json"));
+    assert.strictEqual(href(r.doc), "/pairs/3-4", "corrupt storage is ignored");
+  });
+
+  await test("Próximo never points to the current poll and ignores junk candidates", async () => {
+    const r = await boot(() => json({}), null);
+    r.doc.getElementById("next-link").dataset.candidates = "1-2 javascript:alert(1) ../x 5-6";
+    r.window.dispatchEvent(new r.window.Event("pageshow"));
+    const e = new r.window.Event("pageshow"); e.persisted = true; r.window.dispatchEvent(e);
+    assert.strictEqual(href(r.doc), "/pairs/5-6");
+  });
+
+  await test("after voting the poll is marked seen and Próximo moves to the next unseen candidate", async () => {
+    const { window, doc } = await boot(() => json({ success: true, percentages: { 1: 100 }, total_votes: 1 }), (w) => w.localStorage.setItem("seen_pairs", JSON.stringify(["3-4"])));
+    assert.strictEqual(href(doc), "/pairs/5-6");
+    click(window, doc.querySelector(".vote-button"));
+    await tick(5);
+    assert.deepStrictEqual(JSON.parse(window.localStorage.getItem("seen_pairs")), ["3-4", "1-2"]);
+    assert.strictEqual(doc.getElementById("total-votes").textContent, "1 voto");
+    assert.strictEqual(href(doc), "/pairs/5-6");
+    assert.strictEqual(results(doc), true);
+    assert.strictEqual(doc.getElementById("see-results-link").parentNode.classList.contains("hidden"), true);
+  });
+
+  await test("localStorage unavailable (private mode): page works, vote works, Próximo falls back to the server's first candidate", async () => {
+    const broken = (w) => {
+      Object.defineProperty(w, "localStorage", { get() { throw new w.DOMException("denied", "SecurityError"); } });
+    };
+    const { window, doc, calls } = await boot(() => json({ success: true, percentages: { 1: 60, 2: 40 }, total_votes: 3 }), broken);
+    assert.strictEqual(href(doc), "/pairs/3-4");
+    assert.strictEqual(results(doc), false);
+    click(window, doc.querySelector(".vote-button"));
+    await tick(5);
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(results(doc), true);
+    assert.strictEqual(doc.getElementById("total-votes").textContent, "3 votos");
+    assert.strictEqual(href(doc), "/pairs/3-4", "no storage: the server's first candidate");
+  });
+
+  await test("setItem throwing (quota) does not break voting", async () => {
+    const quota = (w) => {
+      const real = w.localStorage;
+      Object.defineProperty(w, "localStorage", { value: { getItem: (k) => real.getItem(k), setItem() { throw new w.DOMException("full", "QuotaExceededError"); } } });
+    };
+    const { window, doc } = await boot(() => json({ success: true, percentages: { 1: 50, 2: 50 }, total_votes: 2 }), quota);
+    click(window, doc.querySelector(".vote-button"));
+    await tick(5);
+    assert.strictEqual(results(doc), true);
   });
 
   await test("no inline handlers / eval / external URLs in the script", () => {

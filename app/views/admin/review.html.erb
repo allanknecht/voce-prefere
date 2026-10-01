@@ -25,10 +25,10 @@
               <span class="inline-block rounded px-2 py-0.5 font-bold bg-gray-200 text-gray-800">Fora do ar</span>
             <% end %>
             <% if option.report_count.positive? %>
-              <span class="inline-block rounded px-2 py-0.5 font-bold bg-red-600 text-white">🚩 <%= option.report_count %> <%= option.report_count == 1 ? "denúncia" : "denúncias" %></span>
+              <span class="inline-block rounded px-2 py-0.5 font-bold bg-red-600 text-white">🚩 <%= reports_label(option.report_count) %></span>
             <% end %>
             • ID <%= option.id %> • <%= option.created_at.strftime("%d/%m/%Y %H:%M") %>
-            • <%= @vote_counts[option.id].to_i %> votos
+            • <%= votes_label(@vote_counts[option.id].to_i) %>
           </p>
           <div class="flex flex-wrap gap-2 mt-3">
             <%= button_to "✓ Aprovar", admin_approve_path(option), method: :post, form: { class: "inline" },

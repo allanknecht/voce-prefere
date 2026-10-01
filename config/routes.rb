@@ -14,6 +14,7 @@ Rails.application.routes.draw do
   # (literal paths must come before the :id route)
   get "pairs/controversial", to: "pairs#controversial", as: :pairs_controversial
   get "pairs/day", to: "pairs#day", as: :pairs_day
+  get "pairs/:id/results", to: "pairs#results", as: :pair_results
   get "pairs/:id", to: "pairs#show", as: :pair
 
   # Admin authentication

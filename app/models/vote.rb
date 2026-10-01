@@ -27,4 +27,10 @@ class Vote < ApplicationRecord
     counts = pair_counts(pair_hash)
     [ percentages_from(counts), counts.values.sum ]
   end
+
+  # ONE query for several pairs: { pair_hash => { option_id => votes } }
+  def self.counts_for_pairs(pair_hashes)
+    where(pair_hash: pair_hashes).group(:pair_hash, :option_id).count
+      .each_with_object(Hash.new { |h, k| h[k] = {} }) { |((hash, option_id), n), acc| acc[hash][option_id] = n }
+  end
 end

@@ -1,20 +1,22 @@
 class PairsController < ApplicationController
   include PublicRequest
   include PublicCaching
+  include PairPage
 
+  # The VOTE screen, even when the pair already has votes (results only after voting here, or
+  # on the explicit results URL below).
   def show
-    pair_hash = params[:id]
-    @pair = PairGenerator.pair_by_hash(pair_hash)
+    return unless load_pair(params[:id])
 
-    unless @pair
-      redirect_to root_path
-      return
-    end
+    @show_results = false
+  end
 
-    no_shared_cache
-    @pair_hash = pair_hash
-    @next_pair = PairGenerator.next_pair(pair_hash)
-    @percentages, @total_votes = Vote.pair_summary(pair_hash)
+  # Explicit results link ("Ver resultado", shared result links).
+  def results
+    return unless load_pair(params[:id])
+
+    @show_results = true
+    render :show
   end
 
   # Public aggregate, the same for every visitor (and cached in memory by PairGenerator).
@@ -32,7 +34,22 @@ class PairsController < ApplicationController
     end
 
     no_shared_cache
-    @pair_hash = PairGenerator.hash_for(@pair[0], @pair[1])
-    @percentages, @total_votes = Vote.pair_summary(@pair_hash)
+    load_pair_page(PairGenerator.hash_for(@pair[0], @pair[1]))
+  end
+
+  private
+
+  # false (after redirecting to the home page) when the pair does not exist / is not on the air
+  def load_pair(pair_hash)
+    @pair = PairGenerator.pair_by_hash(pair_hash)
+
+    unless @pair
+      redirect_to root_path
+      return false
+    end
+
+    no_shared_cache
+    load_pair_page(pair_hash)
+    true
   end
 end

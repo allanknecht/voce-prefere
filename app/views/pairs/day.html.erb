@@ -9,7 +9,7 @@
 
 <% if @pair %>
   <%= render "shared/voting", pair: @pair, pair_hash: @pair_hash, percentages: @percentages,
-             total_votes: @total_votes, votes_label: "votos hoje" %>
+             total_votes: @total_votes, votes_suffix: "hoje", next_candidates: @next_candidates %>
 <% end %>
 
 <div class="mt-6 text-center">

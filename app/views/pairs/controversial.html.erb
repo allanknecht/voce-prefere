@@ -33,7 +33,7 @@
               
               <div class="flex justify-between items-center mt-3">
                 <span class="text-xs text-gray-500">
-                  <%= pair_data[:total_votes] %> votos • <%= pair_data[:controversy].round(1) %> polêmica
+                  <%= votes_label(pair_data[:total_votes]) %> • <%= pair_data[:controversy].round(1) %> polêmica
                 </span>
                 <a 
                   href="<%= pair_path(pair_data[:pair_hash]) %>" 

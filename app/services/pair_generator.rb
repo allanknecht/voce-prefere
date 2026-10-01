@@ -12,6 +12,8 @@ class PairGenerator
   CACHE_NAMESPACE = "vp:pairs".freeze
   APPROVED_CACHE_TTL = 60.seconds
   CONTROVERSIAL_CACHE_TTL = 60.seconds
+  NEXT_POOL = 24  # pairs considered for "Próximo" ...
+  NEXT_LIMIT = 8  # ... of which this many (the least voted) are embedded in the page
 
   def self.random_pair
     new.random_pair
@@ -21,9 +23,14 @@ class PairGenerator
     new.pair_of_day
   end
 
-  # A pair different from `current_hash` (nil when there is no other pair at all).
-  def self.next_pair(current_hash)
-    new.next_pair(current_hash)
+  # Candidate pair hashes for "Próximo" (see #next_candidates), without any query.
+  def self.next_candidates(current_hash, pool_size: NEXT_POOL)
+    new.next_candidates(current_hash, pool_size: pool_size)
+  end
+
+  # The `limit` candidates with the fewest votes (`totals`: { pair_hash => votes }), ties shuffled.
+  def self.pick_candidates(hashes, totals, limit: NEXT_LIMIT)
+    hashes.shuffle.sort_by.with_index { |hash, index| [ totals[hash].to_i, index ] }.first(limit)
   end
 
   # An approved option by id straight from the in-memory list (no query), nil when not on air.
@@ -62,16 +69,18 @@ class PairGenerator
     options.sample(2)
   end
 
-  # "Próximo": decided by the server when the page is rendered (so the link is fixed, nothing
-  # random happens at click time) and never the pair that is on the screen now.
-  def next_pair(current_hash)
-    12.times do
-      pair = random_pair
-      return pair if pair.nil? || hash_for(pair) != current_hash.to_s
-    end
-    # Unlucky draws (tiny catalogue): enumerate the remaining pairs.
-    candidates = pairable_options.flat_map { |options| options.combination(2).to_a }
-    candidates.reject { |pair| hash_for(pair) == current_hash.to_s }.sample
+  # "Próximo": a few candidate pairs chosen by the server when the page is rendered (nothing is
+  # random at click time). Every candidate is a pair of the SAME category (good/bad) as the
+  # current one, never the current pair, and only made of options on the air. When the category
+  # has no other pair at all, pairs of the other category are used instead (so the link still
+  # leads to a new poll). Returns pair hashes ("smaller_id-bigger_id"), possibly empty.
+  def next_candidates(current_hash, pool_size: NEXT_POOL)
+    current = pair_by_hash(current_hash)
+    groups = pairable_options
+    same = current ? groups.select { |options| options.first.category == current.first.category } : []
+    found = candidate_hashes(same, current_hash.to_s, pool_size)
+    found = candidate_hashes(groups, current_hash.to_s, pool_size) if found.empty?
+    found
   end
 
   def approved_option(id)
@@ -107,6 +116,24 @@ class PairGenerator
 
   def hash_for(pair)
     self.class.hash_for(pair[0], pair[1])
+  end
+
+  # Small categories: every pair. Big ones: random draws (the number of pairs grows with n^2).
+  def candidate_hashes(groups, current_hash, pool_size)
+    found = Set.new
+    groups.each do |options|
+      if options.length <= 10
+        options.combination(2).each { |pair| found << hash_for(pair) }
+      else
+        (pool_size * 3).times do
+          break if found.length >= pool_size * 2
+
+          found << hash_for(options.sample(2))
+        end
+      end
+    end
+    found.delete(current_hash)
+    found.to_a.shuffle.first(pool_size)
   end
 
   # [[good options...], [bad options...]] without the categories that have fewer than 2 options
