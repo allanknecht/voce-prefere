@@ -8,14 +8,14 @@ module Analytics
   # limit purge) at most once per hour across processes. `rake stats:compact` runs it by hand.
   class Compactor
     CHECK_EVERY = 3600 # seconds
-    @last_check = 0.0
+    @last_check = nil # nil = never ran in this process (the monotonic clock starts at boot, so 0.0 is not 'long ago')
 
     class << self
       attr_accessor :last_check
 
       def run_if_due(today: Analytics.today)
         now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        return nil if now - (last_check || 0.0) < CHECK_EVERY
+        return nil if last_check && now - last_check < CHECK_EVERY
 
         self.last_check = now
         return nil unless RateLimiter.claim_once("analytics", "compact", 1.hour)

@@ -8,7 +8,7 @@ class AnalyticsCompactionTest < ActiveSupport::TestCase
   setup do
     [ Visit, AnalyticsEvent, DailyStat ].each(&:delete_all)
     RateLimiter::RateLimit.delete_all
-    Analytics::Compactor.last_check = 0.0
+    Analytics::Compactor.last_check = nil
   end
 
   def visit!(day, visitor, hour: 10, **attrs)
@@ -105,12 +105,24 @@ class AnalyticsCompactionTest < ActiveSupport::TestCase
     seed_old_day
     assert_equal 1, Analytics::Compactor.run_if_due(today: TODAY)
     assert_nil Analytics::Compactor.run_if_due(today: TODAY), "second call within the hour does nothing"
-    Analytics::Compactor.last_check = 0.0
+    Analytics::Compactor.last_check = nil
     assert_nil Analytics::Compactor.run_if_due(today: TODAY), "another process holds the hourly marker"
     RateLimiter::RateLimit.where(action: "once").update_all(expires_at: 1.minute.ago)
     seed_old_day
-    Analytics::Compactor.last_check = 0.0
+    Analytics::Compactor.last_check = nil
     assert_equal 1, Analytics::Compactor.run_if_due(today: TODAY)
+  end
+
+  test "a process that booted less than an hour ago (small monotonic clock) still runs the first compaction" do
+    seed_old_day
+    Analytics::Compactor.last_check = nil
+    real = Process.method(:clock_gettime)
+    Process.define_singleton_method(:clock_gettime) { |*| 120.0 }
+    begin
+      assert_equal 1, Analytics::Compactor.run_if_due(today: TODAY)
+    ensure
+      Process.define_singleton_method(:clock_gettime, real)
+    end
   end
 
   test "rake stats:compact" do

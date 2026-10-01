@@ -95,14 +95,14 @@ class RateLimiter
   end
 
   CLEANUP_EVERY = 60 # seconds: the purge is throttled per process (was one DELETE per request)
-  @last_cleanup = 0.0
+  @last_cleanup = nil # nil = never purged in this process
   class << self
     attr_accessor :last_cleanup
   end
 
   def cleanup_expired
     now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    return if now - (self.class.last_cleanup || 0.0) < CLEANUP_EVERY
+    return if self.class.last_cleanup && now - self.class.last_cleanup < CLEANUP_EVERY
 
     self.class.last_cleanup = now
     RateLimit.where("expires_at < ?", Time.current).delete_all
