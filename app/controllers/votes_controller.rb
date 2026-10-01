@@ -33,6 +33,7 @@ class VotesController < ApplicationController
     if RateLimiter.claim_once(hashed_ip, "vote_pair:#{pair_hash}", DUPLICATE_WINDOW)
       Vote.create!(option: option, pair_hash: pair_hash)
       RateLimiter.record(hashed_ip, :vote)
+      Analytics.record_event(request, "vote", pair_hash: pair_hash, option_id: option.id)
     end
 
     # Updated percentages and total from ONE grouped query

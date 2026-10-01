@@ -3,6 +3,7 @@ class RateLimiter
     submit: { count: 5, window: 1.hour },
     vote: { count: 100, window: 1.hour },
     report: { count: 10, window: 1.hour },
+    beacon: { count: 600, window: 1.hour },
     admin_login: { count: 5, window: 15.minutes }
   }.freeze
 
@@ -94,14 +95,14 @@ class RateLimiter
   end
 
   CLEANUP_EVERY = 60 # seconds: the purge is throttled per process (was one DELETE per request)
-  @last_cleanup = 0.0
+  @last_cleanup = nil # nil = never purged in this process
   class << self
     attr_accessor :last_cleanup
   end
 
   def cleanup_expired
     now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    return if now - (self.class.last_cleanup || 0.0) < CLEANUP_EVERY
+    return if self.class.last_cleanup && now - self.class.last_cleanup < CLEANUP_EVERY
 
     self.class.last_cleanup = now
     RateLimit.where("expires_at < ?", Time.current).delete_all

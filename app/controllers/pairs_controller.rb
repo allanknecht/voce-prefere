@@ -5,22 +5,26 @@ class PairsController < ApplicationController
   # The VOTE screen, even when the pair already has votes (results only after voting here, or
   # on the explicit results URL below).
   def show
+    @analytics_screen = "pair"
     load_screen(params[:id], show_results: false)
   end
 
   # Explicit results link ("Ver resultado", shared result links).
   def results
+    @analytics_screen = "results"
     render :show if load_screen(params[:id], show_results: true)
   end
 
   # Public aggregate, the same for every visitor (and cached in memory by PairGenerator).
   def controversial
+    @analytics_screen = "controversial"
     @controversial_pairs = PairGenerator.controversial_pairs(limit: 20, min_votes: 10)
     cache_publicly(1.minute)
   end
 
   def day
     no_shared_cache
+    @analytics_screen = "day"
     @screen = PairScreen.of_day
     redirect_to root_path, status: :found unless @screen
   end

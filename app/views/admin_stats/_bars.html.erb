@@ -1,0 +1,11 @@
+<%# locals: rows ([[label, value]]), color (optional css class) — a CSS bar chart without inline styles %>
+<% max = rows.map { |_, v| v.to_i }.max.to_i %>
+<table class="w-full text-sm">
+  <% rows.each do |label, value| %>
+    <tr>
+      <td class="pr-2 py-0.5 whitespace-nowrap text-gray-700"><%= label %></td>
+      <td class="w-full py-0.5"><span class="stat-bar <%= local_assigns[:color] %> <%= bar_width_class(value, max) %>"></span></td>
+      <td class="pl-2 py-0.5 text-right font-bold tabular-nums"><%= value %></td>
+    </tr>
+  <% end %>
+</table>

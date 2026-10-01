@@ -119,10 +119,18 @@ Rails' session-based CSRF tokens. Login attempts are rate limited.
 `SHA256(secret + hour window + IP + action)` is stored in `rate_limits` with an expiry ≤ 1 hour; raw IPs are
 never stored. Limits per hour: submit 5, vote 100, report 10; admin login 5 per 15 minutes.
 
+## Analytics (first-party, anonymous)
+
+Visits and actions (vote, submit, share, report) are counted in our own database with **no cookie, no IP, no user agent, no URL and no
+personal data** (see [PRIVACY.md](PRIVACY.md)). The visitor id is a daily-rotating HMAC, so "visitors" are counted per day; "returning" is a boolean
+computed in the browser from a `localStorage` date. Bots, `Sec-GPC: 1` and `DNT: 1` are not recorded. Raw rows are kept 90 days and then compacted
+into `daily_stats` (`bin/rails stats:compact`, also run opportunistically). View it at `/admin/stats` (7 / 30 / 90 days, CSS charts).
+
 ## Privacy summary
 
 See [PRIVACY.md](PRIVACY.md) for details and code references. In short: no accounts, no cookies on public pages,
-no third-party requests (CSP enforces it), no IPs stored or logged, no analytics.
+no third-party requests (CSP enforces it), no IPs stored or logged. The only analytics is first-party, anonymous and
+server side (below), with no third party.
 
 ## Project structure
 

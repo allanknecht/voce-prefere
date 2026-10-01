@@ -197,6 +197,50 @@
     link.setAttribute("href", "/pairs/" + chosen);
   }
 
+  // ---- First-party analytics (see PRIVACY.md) ----------------------------------------------
+  // One tiny POST /m after the page loaded, one when Compartilhar is clicked. No cookie, no id:
+  // only the page kind, the poll hash, the referrer's HOST NAME (never path/query), a short
+  // ?s= / ?utm_source= tag, "opened via a shared link" (?c=1) and ONE boolean: `returning`,
+  // true when the last visit date kept in localStorage is before today (the date never leaves
+  // the browser). Without storage (private mode) every visit counts as new.
+  var LAST_VISIT_KEY = "last_visit";
+
+  function localDate() {
+    var d = new Date();
+    function two(n) { return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + "-" + two(d.getMonth() + 1) + "-" + two(d.getDate());
+  }
+
+  function track(kind, extra) {
+    try {
+      if (typeof fetch !== "function") return;
+      var body = { kind: kind };
+      Object.keys(extra || {}).forEach(function (key) { body[key] = extra[key]; });
+      fetch("/m", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), keepalive: true, credentials: "omit" })
+        .catch(function () {});
+    } catch (e) { /* analytics must never break the page */ }
+  }
+
+  function initAnalytics() {
+    var screen = document.body && document.body.dataset.screen;
+    if (!screen) return; // admin and other non-public pages carry no data-screen: nothing is sent
+    var today = localDate();
+    var last = store.get(LAST_VISIT_KEY);
+    var query = new URLSearchParams(window.location.search);
+    var host = "";
+    try { host = document.referrer ? new URL(document.referrer).hostname : ""; } catch (e) { host = ""; }
+    var container = document.getElementById("voting-container");
+    track("visit", {
+      screen: screen,
+      pair_hash: container ? container.dataset.pairHash : undefined,
+      referrer: host,
+      tag: query.get("s") || query.get("utm_source") || undefined,
+      via_share: query.get("c") === "1",
+      returning: !!last && last < today
+    });
+    store.set(LAST_VISIT_KEY, today);
+  }
+
   // ---- Voting (home, /pairs/:hash, /pairs/day) --------------------------------
   function pluralVotes(count, suffix) {
     return count + (Number(count) === 1 ? " voto" : " votos") + (suffix ? " " + suffix : "");
@@ -292,7 +336,8 @@
     var share = document.getElementById("share-button");
     if (share) {
       share.addEventListener("click", function () {
-        var url = window.location.origin + "/pairs/" + pairHash;
+        var url = window.location.origin + "/pairs/" + pairHash + "?c=1"; // c=1: "opened a shared link"
+        track("share_click", { pair_hash: pairHash });
         if (navigator.share) {
           navigator.share({ title: "Você Prefere?", text: "Veja o que eu escolhi!", url: url })
             .catch(function () { copyToClipboard(url); });
@@ -389,6 +434,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     applyBarWidths();
+    initAnalytics();
     initVoting();
     initSubmit();
   });
