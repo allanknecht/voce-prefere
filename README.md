@@ -139,6 +139,9 @@ app/controllers/   Pages, Pairs, Votes, Options (public), Admin, AdminSessions
 app/controllers/concerns/  PublicRequest (cookie-free CSRF), AdminArea
 app/services/      OptionClassifier, RateLimiter, PairGenerator
 app/assets/javascripts/application.js   the only script (no inline JS)
+app/assets/tailwind/application.css     the whole look ("Pop Duelo"), built by tailwindcss-rails (assets:precompile in the Dockerfile)
+app/assets/fonts/                       Archivo Black (SIL OFL 1.1, OFL.txt), self-hosted woff2 (CSP font-src 'self')
+public/erro-v1.css                      stylesheet of the static error pages (public/4xx.html, 500.html)
 lib/privacy/       IP scrubbing for logs (Rails logger, BroadcastLogger, Puma)
 config/initializers/  CSP, security headers, session cookie, admin secret check, log privacy
 ```

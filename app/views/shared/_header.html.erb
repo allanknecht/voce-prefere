@@ -1,10 +1,14 @@
-<%# locals: title (default "VOCÊ PREFERE? 🤔"), subtitle (optional), tilted (default true) %>
-<% tilted = local_assigns.fetch(:tilted, true) %>
-<div class="text-center mb-8">
-  <h1 class="text-5xl font-black text-white mb-2 drop-shadow-lg<%= " transform -rotate-2" if tilted %>">
-    <%= local_assigns[:title] || "VOCÊ PREFERE? 🤔" %>
+<%# locals: title (optional: one single label, e.g. "⭐ Par do Dia"), subtitle (optional tagline).
+    Default: the two-tag "Você prefere?" logo. Natural case here, uppercase comes from CSS. %>
+<header class="hero">
+  <h1 class="logo<%= " logo-day" if local_assigns[:title] %>">
+    <% if local_assigns[:title] %>
+      <span class="logo-a"><%= local_assigns[:title] %></span>
+    <% else %>
+      <span class="logo-a">Você</span> <span class="logo-b">prefere?</span>
+    <% end %>
   </h1>
   <% if local_assigns[:subtitle] %>
-    <p class="text-white text-lg opacity-90"><%= local_assigns[:subtitle] %></p>
+    <p class="tagline"><%= local_assigns[:subtitle] %></p>
   <% end %>
-</div>
+</header>

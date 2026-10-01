@@ -1,0 +1,26 @@
+/* Error pages (400, 404, 406, 422, 500): "Pop Duelo" look, self-contained (no fonts, no images).
+   Static file: keep the -vN suffix and bump it when this changes (assets are cached for a year). */
+:root{--paper:#fff6dc;--surface:#fff;--ink:#111;--muted:#4a4a4a;--yellow:#ffd60a;--pink:#ff5c9e;--blue:#2459ff;--on-blue:#fff;--shadow:#111;
+  --display:"Archivo Black","Arial Black","Helvetica Neue",Impact,system-ui,sans-serif;--body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root{--paper:#16131f;--surface:#221e31;--ink:#fff6dc;--muted:#c9c3d6;--blue:#7c9bff;--on-blue:#0e0b16;--shadow:#000}}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;min-height:100vh;background-color:var(--paper);background-image:radial-gradient(var(--ink) 1.2px,transparent 1.4px);background-size:22px 22px;color:var(--ink);font:500 1.0625rem/1.45 var(--body)}
+@media (prefers-color-scheme:dark){body{background-image:radial-gradient(#ffffff22 1.2px,transparent 1.4px)}}
+.wrap{max-width:560px;margin:0 auto;padding:1.5rem 1rem 3rem}
+.hero{text-align:center;margin-bottom:1.5rem}
+.logo{margin:0;font:400 clamp(2.6rem,11vw,3.5rem)/.92 var(--display);text-transform:uppercase;letter-spacing:-.02em}
+.logo-a,.logo-b{display:inline-block;color:#111;border:4px solid var(--ink);padding:.05em .25em;box-shadow:3px 3px 0 var(--shadow)}
+.logo-a{background:var(--yellow);transform:rotate(-3deg)}
+.logo-b{background:var(--pink);transform:rotate(2deg);margin-top:.5rem}
+.card{padding:2rem 1.5rem;border:4px solid var(--ink);border-radius:14px;background:var(--surface);box-shadow:6px 6px 0 var(--shadow);text-align:center}
+.emoji{margin:0 0 .75rem;font-size:4.5rem;line-height:1}
+.code{display:inline-block;margin:0 0 .75rem;padding:.35em .6em;border-radius:6px;background:#111;color:#fff;font:400 .8125rem/1 var(--display);letter-spacing:.12em;text-transform:uppercase}
+h1{margin:0 0 1rem;font:400 1.6rem/1.05 var(--display);text-transform:uppercase}
+.text{max-width:30ch;margin:0 auto 1.5rem;color:var(--muted);font-weight:700}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:3rem;padding:.75rem 1.25rem;border:3px solid var(--ink);border-radius:12px;background:var(--blue);color:var(--on-blue);box-shadow:3px 3px 0 var(--shadow);font:400 .9375rem/1.1 var(--display);text-decoration:none;text-transform:uppercase;letter-spacing:.02em}
+.btn:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--shadow)}
+.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--shadow)}
+.btn:focus-visible{outline:4px solid var(--blue);outline-offset:3px}
+@media (prefers-color-scheme:dark){.btn:focus-visible{outline-color:var(--yellow)}}
+@media (min-width:900px){.wrap{padding-top:3rem}.logo{font-size:5.5rem}.logo-a,.logo-b{margin-top:0}.card{padding:3rem 2rem}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}

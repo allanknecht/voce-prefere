@@ -262,14 +262,28 @@
       results.classList.remove("hidden");
     }
 
+    // The leading option(s) wear .is-winner (highlighted percentage + yellow bar), as on the server render.
+    function markWinners(percentages) {
+      var top = Math.max.apply(null, Object.keys(percentages).map(function (id) { return Number(percentages[id]); }));
+      Object.keys(percentages).forEach(function (optionId) {
+        var label = document.querySelector('[data-option-id="' + optionId + '-percentage"]');
+        var row = label && label.closest(".bar-row");
+        if (row) row.classList.toggle("is-winner", top > 0 && Number(percentages[optionId]) === top);
+      });
+    }
+
     function updateResults(percentages, totalVotes) {
       Object.keys(percentages).forEach(function (optionId) {
         var pct = percentages[optionId];
         var label = document.querySelector('[data-option-id="' + optionId + '-percentage"]');
         var bar = document.querySelector('[data-option-id="' + optionId + '-bar"]');
         if (label) label.textContent = pct + "%";
-        if (bar) bar.style.width = pct + "%";
+        if (bar) {
+          bar.dataset.width = pct;
+          bar.style.width = pct + "%";
+        }
       });
+      markWinners(percentages);
       document.getElementById("total-votes").textContent = pluralVotes(totalVotes, container.dataset.votesSuffix);
     }
 
@@ -361,7 +375,7 @@
 
     function say(text, ok) {
       message.textContent = text;
-      message.className = "mt-3 text-sm text-center " + (ok ? "text-green-600" : "text-red-600");
+      message.className = "form-message " + (ok ? "is-ok" : "is-error");
     }
 
     openButton.addEventListener("click", function () {

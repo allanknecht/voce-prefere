@@ -113,7 +113,7 @@ class PairScreensTest < ActionDispatch::IntegrationTest
     assert_select "#submit-button", 1
     assert_select "a[href=?]", pairs_day_path
     assert_select "a[href=?]", pairs_controversial_path
-    assert_select "h1", text: /VOCÊ PREFERE/
+    assert_select "h1", text: /Você prefere\?/ # upper-cased by CSS
   end
 
   test "a single option in a category gives an empty state only when no category has a pair" do

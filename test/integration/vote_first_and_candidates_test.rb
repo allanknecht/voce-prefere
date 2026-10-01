@@ -20,7 +20,7 @@ class VoteFirstAndCandidatesTest < ActionDispatch::IntegrationTest
   end
 
   def vote_buttons_hidden?
-    css_select("#voting-container > div.space-y-4").first["class"].to_s.split.include?("hidden")
+    css_select("#voting-container > .duel").first["class"].to_s.split.include?("hidden")
   end
 
   def candidates

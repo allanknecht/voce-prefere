@@ -144,7 +144,7 @@ class FastVoteAndNextTest < ActionDispatch::IntegrationTest
   # ---- deterministic "Próximo" -------------------------------------------------------------------
 
   def next_href
-    css_select("#results a.bg-green-500").first["href"]
+    css_select("#results a.btn-next").first["href"]
   end
 
   test "Próximo points to /pairs/:hash fixed at render time: never the current pair, same category, both options on air" do
