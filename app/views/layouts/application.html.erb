@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
+    <meta charset="utf-8">
     <title><%= content_for(:title) || "Você Prefere?" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark">
     <% if respond_to?(:public_form_token) && !@skip_form_token %>
       <%# Stateless anti-CSRF token for the public forms (this site sets no cookies). See PublicRequest.
          Omitted on publicly cached pages (no forms there, see PublicCaching). %>
@@ -13,10 +15,12 @@
     <%= javascript_include_tag "application", defer: true %>
   </head>
 
-  <body class="bg-gradient-to-br from-purple-600 via-pink-500 to-yellow-400 min-h-screen"<% if @analytics_screen %> data-screen="<%= @analytics_screen %>"<% end %>>
-    <div class="container mx-auto px-4 py-6 max-w-2xl">
-      <%= yield %>
-    </div>
+  <%# "Pop Duelo" look: see app/assets/tailwind/application.css. The admin pages share it but keep
+      the light palette (.admin-area) and wrap their content in <main> here; the public views
+      provide their own header / main / footer landmarks. %>
+  <% admin = controller_path.start_with?("admin") %>
+  <body class="<%= "admin-area" if admin %>"<% if @analytics_screen %> data-screen="<%= @analytics_screen %>"<% end %>>
+    <%= content_tag(admin ? :main : :div, class: "wrap") { yield } %>
     <%# Shown by application.js after 3 s of waiting (the free server sleeps when idle). %>
     <p id="nav-error" class="slow-notice nav-error" role="alert" hidden></p>
     <p id="slow-notice" class="slow-notice" role="status" aria-live="polite" hidden>⏳ acordando o servidor...</p>

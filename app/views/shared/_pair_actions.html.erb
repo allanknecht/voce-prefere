@@ -1,23 +1,15 @@
 <%# Votar (results URL only) / Compartilhar / Próximo. Plain links: a full document load every time.
     locals: screen (PairScreen) %>
-<div class="mt-6 flex gap-3">
+<div class="actions-row">
   <% if screen.show_results %>
-    <a href="<%= pair_path(screen.pair_hash) %>" data-turbo="false" class="flex-1 bg-white hover:bg-yellow-200 text-gray-900 font-bold py-3 px-4 rounded-xl border-4 border-black shadow-lg text-center">🗳️ Votar</a>
+    <a href="<%= pair_path(screen.pair_hash) %>" data-turbo="false" class="btn btn-vote">🗳️ Votar</a>
   <% end %>
-  <button
-    type="button"
-    id="share-button"
-    class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition hover:scale-105"
-  >
-    📤 Compartilhar
-  </button>
+  <button type="button" id="share-button" class="btn btn-share">📤 Compartilhar</button>
   <a
     href="<%= screen.next_href %>"
     id="next-link"
     data-turbo="false"
     data-candidates="<%= screen.next_candidates.join(" ") %>"
-    class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform transition hover:scale-105 text-center"
-  >
-    ▶️ Próximo
-  </a>
+    class="btn btn-next"
+  >Próximo ▶️</a>
 </div>

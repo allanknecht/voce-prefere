@@ -1,15 +1,11 @@
 <%# The RESULTS view (hidden until the visitor voted, or shown on the explicit results URL).
     locals: screen (PairScreen) %>
 <div id="results"<%= " class=hidden".html_safe unless screen.show_results %>>
-  <div class="bg-white rounded-2xl shadow-xl p-6 border-4 border-black">
-    <h2 class="text-2xl font-black mb-4 text-center">RESULTADOS:</h2>
-    <div class="space-y-3">
-      <%= render "shared/pair_bars", options: screen.pair, percentages: screen.percentages, size: :large, live: true %>
-    </div>
-    <p class="text-center mt-4 text-gray-600">
-      <span id="total-votes"><%= votes_label(screen.total_votes, screen.votes_suffix) %></span>
-    </p>
-  </div>
+  <section class="card results" aria-labelledby="results-title">
+    <h2 id="results-title" class="card-title">Resultados:</h2>
+    <%= render "shared/pair_bars", options: screen.pair, percentages: screen.percentages, size: :large, live: true %>
+    <p class="total"><span id="total-votes"><%= votes_label(screen.total_votes, screen.votes_suffix) %></span></p>
+  </section>
 
   <%= render "shared/pair_actions", screen: screen %>
 </div>

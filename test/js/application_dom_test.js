@@ -16,8 +16,8 @@ const PAGE = `<!DOCTYPE html><html><head><meta name="form-token" content="tok"><
   <p><a id="see-results-link" href="/pairs/1-2/results">Ver resultado</a></p>
   <p id="vote-message" hidden></p>
   <div id="results" class="hidden">
-    <span data-option-id="1-percentage"></span><div data-option-id="1-bar"></div>
-    <span data-option-id="2-percentage"></span><div data-option-id="2-bar"></div>
+    <div class="bar-row"><span data-option-id="1-percentage"></span><div data-option-id="1-bar" class="bar-fill bar-w-0"></div></div>
+    <div class="bar-row"><span data-option-id="2-percentage"></span><div data-option-id="2-bar" class="bar-fill bar-w-0"></div></div>
     <span id="total-votes"></span>
     <a id="next-link" href="/pairs/3-4" data-candidates="3-4 5-6 7-8 9-10">Próximo</a>
   </div>
@@ -81,6 +81,9 @@ async function test(name, fn) {
     assert.ok(!doc.getElementById("results").classList.contains("hidden"));
     assert.strictEqual(doc.querySelector('[data-option-id="1-percentage"]').textContent, "60%");
     assert.strictEqual(doc.getElementById("total-votes").textContent, "5 votos");
+    assert.strictEqual(doc.querySelector('[data-option-id="1-bar"]').style.width, "60%", "exact width through the CSSOM");
+    assert.ok(doc.querySelector('[data-option-id="1-percentage"]').closest(".bar-row").classList.contains("is-winner"), "leader gets .is-winner");
+    assert.ok(!doc.querySelector('[data-option-id="2-percentage"]').closest(".bar-row").classList.contains("is-winner"));
     assert.strictEqual(window.localStorage.getItem("voted_1-2"), "true");
     assert.strictEqual(a.disabled, true, "stays locked after success");
     const body = JSON.parse(calls[0].options.body);

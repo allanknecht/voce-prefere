@@ -1,11 +1,963 @@
 @import "tailwindcss";
 
-/* ---- Loading state (see app/assets/javascripts/application.js) -------------------------
-   The clicked button / link / submit gets aria-busy="true": a small spinner after its label,
-   slightly dimmed, no pointer events (double-click protection). First-party CSS only. */
+/* =========================================================================================
+   "Pop Duelo": neo-brutalist look (thick borders, flat colours, hard shadows, huge type).
+   Everything is first-party CSS (CSP: default-src 'none'; style-src 'self'; font-src 'self'):
+   no inline styles, no CDN, no external fonts or images. Dark mode follows
+   prefers-color-scheme. Component styles live in @layer components, so the Tailwind
+   `hidden` utility (toggled by app/assets/javascripts/application.js) always wins.
+   Loading / disabled / chosen states of the vote buttons are driven by the attributes and
+   classes application.js already sets: [disabled], [aria-disabled], [aria-busy], .is-loading,
+   .vote-chosen, .is-voting.
+   ========================================================================================= */
+
+/* Archivo Black (SIL Open Font License 1.1, see app/assets/fonts/OFL.txt): one 30 KB woff2,
+   self-hosted. Propshaft digests the url() below, so it is served from /assets with a
+   far-future Cache-Control. Without it the stack falls back to Arial Black / Impact. */
+@font-face {
+  font-family: "Archivo Black";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("ArchivoBlack-Regular.woff2") format("woff2");
+}
+
+@layer base {
+  :root {
+    --paper: #fff6dc;      /* page */
+    --surface: #ffffff;    /* cards */
+    --ink: #111111;        /* text and borders (17.5:1 on paper) */
+    --muted: #4a4a4a;      /* secondary text (8.2:1 on paper) */
+    --yellow: #ffd60a;     /* option A, Par do Dia */
+    --pink: #ff5c9e;       /* option B */
+    --blue: #2459ff;       /* primary action / share (white on blue 5.3:1) */
+    --green: #2ee08a;      /* next / "Boa" */
+    --red: #d42a24;        /* Polêmicos / errors (white on red 5.05:1) */
+    --ok-text: #0b7a43;    /* success text on surface (5.5:1) */
+    --on-blue: #ffffff;
+    --on-red: #ffffff;
+    --shadow-color: #111111;
+    --shadow: 6px 6px 0 var(--shadow-color);
+    --shadow-sm: 3px 3px 0 var(--shadow-color);
+    --bw: 4px;
+    --r: 14px;
+    --font-display: "Archivo Black", "Arial Black", "Helvetica Neue", Impact, system-ui, sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --t-xs: 0.8125rem;
+    --t-sm: 0.9375rem;
+    --t-md: 1.0625rem;
+    --t-lg: 1.5rem;
+    --t-xl: 2rem;
+    --t-2xl: clamp(2.6rem, 11vw, 3.5rem);
+    --s1: 0.25rem;
+    --s2: 0.5rem;
+    --s3: 0.75rem;
+    --s4: 1rem;
+    --s5: 1.5rem;
+    --s6: 2rem;
+    --s7: 3rem;
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #16131f;
+      --surface: #221e31;
+      --ink: #fff6dc;
+      --muted: #c9c3d6;
+      --blue: #7c9bff;
+      --red: #ff6a62;
+      --ok-text: #2ee08a;
+      --on-blue: #0e0b16;
+      --on-red: #0e0b16;
+      --shadow-color: #000000;
+    }
+  }
+
+  /* The admin area keeps the light palette (its pages are built from white Tailwind cards). */
+  .admin-area {
+    --paper: #fff6dc;
+    --surface: #ffffff;
+    --ink: #111111;
+    --muted: #4a4a4a;
+    --blue: #2459ff;
+    --red: #d42a24;
+    --shadow-color: #111111;
+    color-scheme: light;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--paper);
+    background-image: radial-gradient(var(--ink) 1.2px, transparent 1.4px);
+    background-size: 22px 22px;
+    color: var(--ink);
+    font: 500 var(--t-md) / 1.45 var(--font-body);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    body:not(.admin-area) {
+      background-image: radial-gradient(#ffffff22 1.2px, transparent 1.4px);
+    }
+  }
+
+  :focus-visible {
+    outline: 4px solid var(--blue);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    body:not(.admin-area) :focus-visible {
+      outline-color: var(--yellow);
+    }
+  }
+}
+
+@layer components {
+  .wrap {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: var(--s5) var(--s4) var(--s7);
+  }
+
+  /* ---- Header ---- */
+  .hero {
+    text-align: center;
+    margin-bottom: var(--s5);
+  }
+
+  .logo {
+    margin: 0;
+    font: 400 var(--t-2xl) / 0.92 var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+  }
+
+  .logo-a,
+  .logo-b {
+    display: inline-block;
+    color: #111;
+    border: var(--bw) solid var(--ink);
+    padding: 0.05em 0.25em;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .logo-a {
+    background: var(--yellow);
+    transform: rotate(-3deg);
+  }
+
+  .logo-b {
+    background: var(--pink);
+    transform: rotate(2deg);
+    margin-top: var(--s2);
+  }
+
+  .logo-day .logo-a {
+    background: var(--green);
+    font-size: 0.7em;
+  }
+
+  .tagline {
+    display: inline-block;
+    margin: var(--s4) 0 0;
+    padding: var(--s1) var(--s3);
+    background: var(--surface);
+    border: 3px solid var(--ink);
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: var(--t-sm);
+  }
+
+  /* ---- Duel (vote buttons) ---- */
+  .duel {
+    display: grid;
+    position: relative;
+  }
+
+  .vote-button {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+    width: 100%;
+    min-height: 8.5rem;
+    padding: var(--s5);
+    position: relative;
+    box-sizing: border-box;
+    border: var(--bw) solid var(--ink);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    color: #111;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .opt-a {
+    background: var(--yellow);
+  }
+
+  .opt-b {
+    background: var(--pink);
+  }
+
+  .opt-tag {
+    align-self: flex-start;
+    padding: 0.35em 0.6em;
+    border-radius: 6px;
+    background: #111;
+    color: #fff;
+    font: 400 var(--t-xs) / 1 var(--font-display);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .opt-text {
+    font: 400 clamp(1.6rem, 7vw, 2.2rem) / 1.05 var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
+  }
+
+  .vote-button:active {
+    transform: translate(5px, 5px);
+    box-shadow: 1px 1px 0 var(--shadow-color);
+  }
+
+  .vote-button:focus-visible {
+    outline: 4px solid var(--blue);
+    outline-offset: 4px;
+  }
+
+  @media (hover: hover) {
+    .vote-button:hover {
+      transform: translate(-3px, -3px) rotate(-0.6deg);
+      box-shadow: 9px 9px 0 var(--shadow-color);
+    }
+  }
+
+  .vs {
+    place-self: center;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 3.6rem;
+    height: 3.6rem;
+    margin: calc(var(--s4) * -0.55) 0;
+    border-radius: 50%;
+    border: var(--bw) solid var(--paper);
+    background: #111;
+    color: #fff;
+    box-shadow: 0 0 0 var(--bw) #111;
+    font: 400 1.2rem / 1 var(--font-display);
+    transform: rotate(-8deg);
+  }
+
+  /* Once voted, application.js hides the two buttons: the VS badge goes with them. */
+  .vote-button.hidden + .vs {
+    display: none;
+  }
+
+  .see-results {
+    margin: var(--s5) 0 0;
+    text-align: center;
+  }
+
+  /* ---- Buttons / links that look like buttons ---- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s2);
+    box-sizing: border-box;
+    min-height: 3rem;
+    padding: var(--s3) var(--s4);
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-sm);
+    font: 400 var(--t-sm) / 1.1 var(--font-display);
+    text-align: center;
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.1s;
+  }
+
+  .btn:active {
+    transform: translate(3px, 3px);
+    box-shadow: 0 0 0 var(--shadow-color);
+  }
+
+  @media (hover: hover) {
+    .btn:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 5px 5px 0 var(--shadow-color);
+    }
+
+    .btn:active {
+      transform: translate(3px, 3px);
+      box-shadow: 0 0 0 var(--shadow-color);
+    }
+  }
+
+  .btn-submit {
+    width: 100%;
+    min-height: 3.5rem;
+    font-size: var(--t-md);
+  }
+
+  .btn-day,
+  .btn-vote {
+    background: var(--yellow);
+    color: #111;
+  }
+
+  .btn-hot {
+    background: var(--red);
+    color: var(--on-red);
+  }
+
+  .btn-primary,
+  .btn-share,
+  .btn-small {
+    background: var(--blue);
+    color: var(--on-blue);
+  }
+
+  .btn-next {
+    background: var(--green);
+    color: #111;
+  }
+
+  .btn-small {
+    min-height: 2.5rem;
+    padding: var(--s2) var(--s3);
+    font-size: var(--t-xs);
+  }
+
+  .foot {
+    display: grid;
+    gap: var(--s3);
+    margin-top: var(--s6);
+  }
+
+  .nav-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--s3);
+  }
+
+  .actions-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s3);
+    margin-top: var(--s5);
+  }
+
+  .actions-row .btn-vote {
+    grid-column: 1 / -1;
+  }
+
+  .terms {
+    justify-self: center;
+    font-size: var(--t-xs);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .terms:hover {
+    background: var(--yellow);
+    color: #111;
+  }
+
+  /* ---- Cards / results ---- */
+  .card {
+    padding: var(--s5);
+    border: var(--bw) solid var(--ink);
+    border-radius: var(--r);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .card-title {
+    margin: 0 0 var(--s4);
+    font: 400 var(--t-lg) / 1.05 var(--font-display);
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .card-title-lg {
+    font-size: clamp(1.6rem, 7vw, 2.1rem);
+  }
+
+  .bar-row + .bar-row {
+    margin-top: var(--s4);
+  }
+
+  .bar-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--s3);
+    margin-bottom: var(--s2);
+    font-weight: 800;
+  }
+
+  .bar-label {
+    font-size: var(--t-md);
+    overflow-wrap: anywhere;
+  }
+
+  .bar-pct {
+    flex-shrink: 0;
+    font: 400 var(--t-xl) / 1 var(--font-display);
+  }
+
+  .bar {
+    height: 2rem;
+    overflow: hidden;
+    border: 3px solid var(--ink);
+    border-radius: 10px;
+    background: var(--paper);
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-right: 3px solid var(--ink);
+    background-color: var(--pink);
+    background-image: repeating-linear-gradient(45deg, transparent 0 8px, #00000022 8px 12px);
+    transition: width 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  }
+
+  .bar-fill[data-width="0"],
+  .bar-fill[data-width="0.0"] {
+    border-right-width: 0;
+  }
+
+  .is-winner .bar-fill {
+    background-color: var(--yellow);
+  }
+
+  .is-winner .bar-pct {
+    padding: 0 0.2em;
+    border: 3px solid var(--ink);
+    background: var(--yellow);
+    color: #111;
+    transform: rotate(-3deg);
+  }
+
+  .bar-sm {
+    height: 1.1rem;
+    border-width: 2px;
+    border-radius: 7px;
+  }
+
+  .bar-sm .bar-fill {
+    border-right-width: 2px;
+  }
+
+  .rank-item .bar-pct {
+    font-size: var(--t-md);
+  }
+
+  .rank-item .bar-label {
+    font-size: var(--t-sm);
+  }
+
+  .rank-item .is-winner .bar-pct {
+    border-width: 2px;
+  }
+
+  .total {
+    margin: var(--s5) 0 0;
+    text-align: center;
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  /* ---- Empty state ---- */
+  .empty {
+    padding: var(--s7) var(--s5);
+    text-align: center;
+  }
+
+  .empty-emoji {
+    display: inline-block;
+    margin: 0 0 var(--s3);
+    font-size: 4.5rem;
+    line-height: 1;
+    animation: wobble 2.4s ease-in-out infinite;
+  }
+
+  .empty-text {
+    max-width: 26ch;
+    margin: 0 auto var(--s5);
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  /* ---- Polêmicos ranking ---- */
+  .lead {
+    margin: 0 0 var(--s5);
+    text-align: center;
+    color: var(--muted);
+    font-weight: 700;
+  }
+
+  .rank-list {
+    display: grid;
+    gap: var(--s4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rank-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--s3);
+    padding: var(--s4);
+    border: 3px solid var(--ink);
+    border-radius: 12px;
+    background: var(--paper);
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+
+  @media (hover: hover) {
+    .rank-item:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: var(--shadow-sm);
+    }
+  }
+
+  .rank-num {
+    font: 400 var(--t-xl) / 1 var(--font-display);
+  }
+
+  .rank-item:nth-child(1) .rank-num {
+    align-self: start;
+    padding: 0 0.15em;
+    border: 3px solid var(--ink);
+    background: var(--yellow);
+    color: #111;
+    transform: rotate(-6deg);
+  }
+
+  .rank-item .bar-row + .bar-row {
+    margin-top: var(--s3);
+  }
+
+  .rank-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--s3);
+    margin-top: var(--s3);
+  }
+
+  .rank-meta {
+    color: var(--muted);
+    font-size: var(--t-xs);
+    font-weight: 700;
+  }
+
+  .back {
+    margin: var(--s5) 0 0;
+    text-align: center;
+  }
+
+  /* ---- Termos e Privacidade ---- */
+  .doc {
+    color: var(--ink);
+  }
+
+  .doc section + section {
+    margin-top: var(--s5);
+  }
+
+  .doc h2 {
+    margin: 0 0 var(--s2);
+    font: 400 1.2rem / 1.15 var(--font-display);
+    text-transform: uppercase;
+  }
+
+  .doc p {
+    margin: 0;
+  }
+
+  .doc p + p,
+  .doc p + ul,
+  .doc ul + p,
+  .doc ul + ul {
+    margin-top: var(--s3);
+  }
+
+  .doc ul {
+    margin: 0;
+    padding-left: 1.25rem;
+    list-style: disc;
+  }
+
+  .doc li + li {
+    margin-top: var(--s1);
+  }
+
+  .doc a {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .doc-small {
+    font-size: var(--t-sm);
+  }
+
+  .doc-note {
+    padding-top: var(--s4);
+    border-top: 3px solid var(--ink);
+    color: var(--muted);
+    font-size: var(--t-sm);
+  }
+
+  /* ---- Modal ---- */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: var(--s4);
+    background: rgba(17, 17, 17, 0.62);
+  }
+
+  .modal {
+    width: 100%;
+    max-width: 28rem;
+    max-height: 100%;
+    overflow: auto;
+    padding: var(--s5);
+    border: var(--bw) solid var(--ink);
+    border-radius: var(--r);
+    background: var(--surface);
+    box-shadow: 8px 8px 0 #000;
+  }
+
+  .modal-title {
+    margin: 0 0 var(--s4);
+    font: 400 var(--t-lg) / 1 var(--font-display);
+    text-transform: uppercase;
+  }
+
+  .field {
+    min-width: 0;
+    margin: 0 0 var(--s4);
+    padding: 0;
+    border: 0;
+  }
+
+  .label {
+    display: block;
+    padding: 0;
+    margin-bottom: var(--s2);
+    font-weight: 800;
+  }
+
+  .req {
+    color: var(--red);
+  }
+
+  .input {
+    width: 100%;
+    min-height: 3rem;
+    box-sizing: border-box;
+    padding: var(--s3) var(--s4);
+    border: 3px solid var(--ink);
+    border-radius: 10px;
+    background: var(--paper);
+    color: var(--ink);
+    font: 600 var(--t-md) var(--font-body);
+  }
+
+  .input::placeholder {
+    color: var(--muted);
+    opacity: 1;
+  }
+
+  .input:focus {
+    outline: 4px solid var(--blue);
+    outline-offset: 2px;
+    background: var(--surface);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .input:focus {
+      outline-color: var(--yellow);
+    }
+  }
+
+  .count,
+  .help {
+    margin: var(--s1) 0 0;
+    color: var(--muted);
+    font-size: var(--t-xs);
+    font-weight: 600;
+  }
+
+  .choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s3);
+  }
+
+  .choice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s2);
+    min-height: 3.25rem;
+    padding: var(--s2) var(--s3);
+    border: 3px solid var(--ink);
+    border-radius: 10px;
+    background: var(--surface);
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+
+  .choice input {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: 0;
+    accent-color: #111;
+  }
+
+  @media (hover: hover) {
+    .choice:hover {
+      transform: translate(-1px, -1px);
+      box-shadow: var(--shadow-sm);
+    }
+  }
+
+  .choice:has(:checked) {
+    box-shadow: var(--shadow-sm);
+  }
+
+  .choice-good:has(:checked) {
+    background: var(--green);
+    color: #111;
+  }
+
+  .choice-bad:has(:checked) {
+    background: var(--pink);
+    color: #111;
+  }
+
+  .choice:has(:focus-visible) {
+    outline: 4px solid var(--blue);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .choice:has(:focus-visible) {
+      outline-color: var(--yellow);
+    }
+  }
+
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s3);
+  }
+
+  /* ---- Messages ---- */
+  .alert {
+    margin: 0 0 var(--s4);
+    padding: var(--s3);
+    border: var(--bw) solid var(--ink);
+    border-radius: 12px;
+    background: var(--red);
+    color: var(--on-red);
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .form-message {
+    margin: var(--s3) 0 0;
+    font-size: var(--t-sm);
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .form-message.is-ok {
+    color: var(--ok-text);
+  }
+
+  .form-message.is-error {
+    color: var(--red);
+  }
+
+  /* "acordando o servidor..." (shown after 3 s of waiting) and the navigation error */
+  .slow-notice {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    z-index: 60;
+    max-width: calc(100vw - 2rem);
+    margin: 0;
+    padding: var(--s2) var(--s4);
+    border: 3px solid var(--paper);
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--paper);
+    box-shadow: 0 0 0 3px var(--ink);
+    font-size: var(--t-sm);
+    font-weight: 700;
+    text-align: center;
+    transform: translateX(-50%);
+  }
+
+  .nav-error {
+    bottom: 4.5rem;
+    border-radius: 12px;
+    border-color: var(--ink);
+    background: var(--red);
+    color: var(--on-red);
+    box-shadow: none;
+  }
+
+  /* ---- Desktop: the two options face each other ---- */
+  @media (min-width: 900px) {
+    .wrap {
+      max-width: 1040px;
+      padding: var(--s7) var(--s6) 4rem;
+    }
+
+    .hero {
+      margin-bottom: var(--s6);
+    }
+
+    .logo {
+      font-size: 5.5rem;
+    }
+
+    .logo-a,
+    .logo-b {
+      margin-top: 0;
+    }
+
+    .logo-day {
+      font-size: 4.5rem;
+    }
+
+    .tagline {
+      margin-top: var(--s5);
+      font-size: var(--t-md);
+    }
+
+    .duel {
+      grid-template-columns: 1fr 1fr;
+      gap: var(--s6);
+      align-items: stretch;
+    }
+
+    .vote-button {
+      min-height: 19rem;
+      padding: var(--s6);
+      justify-content: space-between;
+    }
+
+    .opt-text {
+      font-size: clamp(2.2rem, 4vw, 3.4rem);
+    }
+
+    .vs {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 5rem;
+      height: 5rem;
+      margin: 0;
+      font-size: 1.7rem;
+      transform: translate(-50%, -50%) rotate(-8deg);
+    }
+
+    .foot {
+      max-width: 640px;
+      margin-inline: auto;
+    }
+
+    .card,
+    .empty,
+    .ranking,
+    .actions-row {
+      max-width: 760px;
+      margin-inline: auto;
+    }
+
+    .actions-row {
+      margin-top: var(--s5);
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      grid-template-columns: none;
+    }
+
+    .actions-row .btn-vote {
+      grid-column: auto;
+    }
+
+    .modal {
+      max-width: 32rem;
+      padding: var(--s6);
+    }
+
+    .rank-item {
+      padding: var(--s5);
+    }
+
+    .bar {
+      height: 2.4rem;
+    }
+
+    .bar-sm {
+      height: 1.1rem;
+    }
+  }
+}
+
+@keyframes wobble {
+  0%,
+  100% {
+    transform: rotate(-8deg);
+  }
+
+  50% {
+    transform: rotate(8deg);
+  }
+}
+
+@keyframes vp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Busy / disabled states (unlayered: they must beat the component styles) -------------
+   application.js marks the clicked button / link / submit with aria-busy="true" + .is-loading
+   (double-click protection) and, while a vote or submit is in flight, disables every vote button
+   / form field at once ([disabled] + aria-disabled="true"; the chosen one also gets .vote-chosen). */
 [aria-busy="true"] {
   cursor: progress;
-  opacity: 0.75;
+  opacity: 0.8;
   pointer-events: none;
 }
 
@@ -22,24 +974,15 @@ button[aria-busy="true"]::after,
 a[aria-busy="true"]::after {
   content: "";
   display: inline-block;
+  flex-shrink: 0;
   width: 0.9em;
   height: 0.9em;
-  margin-left: 0.5em;
-  vertical-align: -0.1em;
-  border: 0.15em solid currentColor;
+  border: 0.18em solid currentColor;
   border-right-color: transparent;
   border-radius: 9999px;
   animation: vp-spin 0.7s linear infinite;
 }
 
-@keyframes vp-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Voting / submit lock: the moment a vote or a submit starts, EVERY vote button (or form field)
-   is disabled at once; the chosen one stays bright with a spinner, the others are dimmed. */
 [aria-disabled="true"] {
   pointer-events: none;
   cursor: wait;
@@ -50,60 +993,130 @@ a[aria-busy="true"]::after {
 .is-submitting input,
 .is-submitting button {
   cursor: wait;
-  transform: none;
-}
-
-.vote-button.vote-chosen,
-.vote-button.vote-chosen[aria-disabled="true"] {
-  opacity: 1;
-  background: #fde047;
 }
 
 .is-submitting button[type="submit"] {
   opacity: 0.85;
 }
 
-/* "acordando o servidor..." (shown after 3 s of waiting) */
-.slow-notice {
-  position: fixed;
-  left: 50%;
-  bottom: 1rem;
-  transform: translateX(-50%);
-  max-width: calc(100vw - 2rem);
-  padding: 0.5rem 1rem;
-  border: 3px solid #000;
-  border-radius: 1rem;
-  background: #fde047;
-  color: #111827;
-  font-weight: 800;
-  font-size: 0.875rem;
-  box-shadow: 0 4px 0 #000;
-  z-index: 60;
+/* Vote button: pressed in (hard shadow shrinks), no hover/active movement while locked. */
+.vote-button[disabled],
+.vote-button[aria-busy="true"],
+.vote-button.is-loading,
+.vote-button.vote-chosen {
+  cursor: progress;
+  pointer-events: none;
+  transform: translate(3px, 3px);
+  box-shadow: 3px 3px 0 var(--shadow-color);
 }
 
-.nav-error {
-  background: #fca5a5;
-  bottom: 4rem;
+/* disabled because ANOTHER button is voting: grey and dimmed */
+.vote-button[disabled]:not([aria-busy="true"]):not(.vote-chosen) {
+  cursor: not-allowed;
+  filter: grayscale(0.8) contrast(0.9);
+  opacity: 0.6;
 }
 
-.slow-notice[hidden] {
-  display: none;
+/* the chosen one: full colour + spinner while the request is in flight */
+.vote-button.vote-chosen,
+.vote-button.vote-chosen[aria-disabled="true"],
+.vote-button[aria-busy="true"] {
+  filter: none;
+  opacity: 1;
 }
 
-/* Reduced motion: no spinning and no fade; the busy state is still visible (dim + "…"). */
+.vote-button[aria-busy="true"]::after,
+.vote-button.is-loading::after {
+  content: "";
+  position: absolute;
+  top: var(--s4);
+  right: var(--s4);
+  display: block;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+  border: 4px solid #111;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: vp-spin 0.7s linear infinite;
+}
+
+/* "chosen" with the request done (also usable as .is-selected / aria-pressed): green + check */
+.vote-button.is-selected,
+.vote-button[aria-pressed="true"],
+.vote-button.vote-chosen:not([aria-busy="true"]) {
+  background: var(--green);
+}
+
+.vote-button.is-selected::after,
+.vote-button[aria-pressed="true"]::after,
+.vote-button.vote-chosen:not([aria-busy="true"])::after {
+  content: "✔";
+  position: absolute;
+  top: var(--s3);
+  right: var(--s4);
+  color: #111;
+  font: 400 1.6rem / 1 var(--font-display);
+}
+
+.btn[disabled] {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+/* Reduced motion: no spinning, no wobble, no sliding; busy is still visible (dim + "…"). */
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+
+  .empty-emoji {
+    animation: none;
+  }
+
   button[aria-busy="true"]::after,
-  a[aria-busy="true"]::after {
+  a[aria-busy="true"]::after,
+  .vote-button[aria-busy="true"]::after,
+  .vote-button.is-loading::after {
     content: "…";
     width: auto;
     height: auto;
     border: 0;
     animation: none;
-    vertical-align: baseline;
+    font: 400 1.4rem / 1 var(--font-display);
   }
 }
 
-/* Admin statistics bars (/admin/stats): width classes instead of inline styles (CSP style-src 'self'). */
+/* ---- Admin area: same look, cheap restyle of the existing Tailwind pages ---------------- */
+.admin-area h1,
+.admin-area h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.admin-area h2 {
+  font-size: 1.1rem;
+}
+
+.admin-area .wrap {
+  max-width: 720px;
+}
+
+.admin-area :is(a, button, input[type="submit"]).font-bold {
+  border: 3px solid var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-area .shadow-lg,
+.admin-area .shadow-xl {
+  box-shadow: var(--shadow-sm);
+}
+
+/* ---- Admin statistics bars (/admin/stats) and server-rendered percentage bars ------------
+   Width classes instead of inline styles (CSP style-src 'self'): .bar-w-N = N% (0..100). */
 .stat-bar { display: block; height: 0.9rem; border-radius: 9999px; background: #8b5cf6; min-width: 2px; }
 .stat-bar-pink { background: #ec4899; }
 .stat-bar-green { background: #22c55e; }

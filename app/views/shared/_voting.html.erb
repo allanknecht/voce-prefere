@@ -1,10 +1,12 @@
 <%# One poll card, the same on home, /pairs/:hash, /pairs/:hash/results and Par do Dia.
     locals: screen (PairScreen). With no screen the friendly empty state is shown instead. %>
-<% if screen %>
-  <div id="voting-container" data-pair-hash="<%= screen.pair_hash %>" data-votes-suffix="<%= screen.votes_suffix %>"<% if screen.show_results %> data-results-shown="true"<% end %>>
-    <%= render "shared/vote_view", screen: screen %>
-    <%= render "shared/results_view", screen: screen %>
-  </div>
-<% else %>
-  <%= render "shared/empty_state" %>
-<% end %>
+<main>
+  <% if screen %>
+    <div id="voting-container" data-pair-hash="<%= screen.pair_hash %>" data-votes-suffix="<%= screen.votes_suffix %>"<% if screen.show_results %> data-results-shown="true"<% end %>>
+      <%= render "shared/vote_view", screen: screen %>
+      <%= render "shared/results_view", screen: screen %>
+    </div>
+  <% else %>
+    <%= render "shared/empty_state" %>
+  <% end %>
+</main>
