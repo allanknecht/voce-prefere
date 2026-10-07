@@ -7,7 +7,7 @@ gem "tailwindcss-rails"
 # Web server
 gem "puma", ">= 5.0"
 # PostgreSQL (Neon, Render Postgres, ...) in production via DATABASE_URL
-gem "pg", "~> 1.5"
+gem "pg", "~> 1.7"
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false
 
